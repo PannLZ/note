@@ -1,0 +1,1550 @@
+
+
+===== PAGE 1 =====
+
+Contents lists available at ScienceDirect
+Information Fusion
+journal homepage: www.elsevier.com/locate/inffus
+Full Length Article
+Multi-agent SEA: step-wise evidence acquisition for multimodal ﬁnancial 
+reasoning 
+Shuangyan Deng
+ a, Zihao Huang
+ b, Kelvin Du
+ b, Rui Mao
+ b, Jiamou Liu
+ a, 
+Ciprian Doru Giurc ˘aneanu
+ a,∗, Erik Cambria b
+a University of Auckland, 38 Princes Street, Auckland, 1010, New Zealand
+b Nanyang Technological University, 50 Nanyang Avenue, Singapore, 639798, Singapore
+a r t i c l e  i n f o
+Keywords:
+Multimodal ﬁnancial reasoning
+Multi-agent system
+Large language model
+ a b s t r a c t
+Multimodal ﬁnancial reasoning requires integrating heterogeneous information sources, including textual con-
+text, visual signals, and domain-speciﬁc knowledge. Despite recent advances, multimodal large language models 
+(MLLMs) still suﬀer from perceptual errors and insuﬃcient  knowledge, leading to incorrect intermediate ev-
+idence and, ultimately, unreliable reasoning outcomes. We propose SEA (Step-wise Evidence Acquisition), a 
+multi-agent framework that models multimodal ﬁnancial reasoning as an iterative process of task decomposi-
+tion, evidence acquisition, and reasoning. The multi-agent SEA introduces a planner agent that decomposes a 
+complex question into a sequence of subtasks and generates natural-language queries under a uniﬁed communi-
+cation protocol. These queries are routed to specialized evidence-seeking agents, which retrieve complementary 
+evidence from visual inputs, textual context, and external ﬁnancial knowledge. The retrieved information is 
+accumulated into a dynamically evolving evidence state, enabling the reasoning agent to perform step-wise, 
+evidence-grounded inference. Extensive experiments on the ﬁnancial multimodal benchmarks demonstrate that 
+SEA signiﬁcantly improves reasoning accuracy and robustness compared to strong baselines. Further analysis 
+shows that our framework eﬀectively alleviates perception errors and enhances reasoning performance.
+1.  Introduction
+Recent advancements in multimodal large language models (MLLMs) 
+have signiﬁcantly improved AI systems’ capacity to integrate visual and 
+textual information  [1–3]. These models have demonstrated strong per-
+formance across a wide range of tasks  [4], including visual question 
+answering  [5], and multimodal reasoning  [6]. However, their perfor-
+mance on multimodal ﬁnancial reasoning and question-answering tasks 
+remains far from satisfactory  [7–9]. Financial problems often require 
+precise interpretation of numerical information, domain-speciﬁc knowl-
+edge, and multi-step reasoning over heterogeneous inputs such as text, 
+tables, and ﬁnancial charts  [10,11]. These characteristics pose signiﬁ-
+cant challenges for current multimodal models.
+The latest ﬁnancial benchmarks, e.g., FinMMR  [12], FAMMA  [7], 
+and FinMME  [8], ﬁnd that state-of-the-art MLLMs consistently fail in 
+reliable ﬁnancial reasoning. These failures are primarily attributed to 
+perception errors (misreading charts), context misunderstanding (mis-
+interpreting constraints), and knowledge insuﬃciency  (lacking domain 
+formulas), as illustrated in Fig. 1. While diverse in origin, these issues 
+∗ Corresponding author.
+ E-mail addresses: sden118@aucklanduni.ac.nz (S. Deng), zihao016@e.ntu.edu.sg (Z. Huang), zidong001@e.ntu.edu.sg (K. Du), rui.mao@ntu.edu.sg (R. Mao), 
+jiamou.liu@auckland.ac.nz (J. Liu), c.giurcaneanu@auckland.ac.nz (C.D. Giurc ˘aneanu), cambria@ntu.edu.sg (E. Cambria).
+converge on a single critical failure: the inability to acquire the correct 
+intermediate evidence. Consequently, models proceed with reasoning 
+based on incomplete or irrelevant information, leading to cascading er-
+rors.
+In contrast, human expert reasoning follows a distinct, decomposed 
+pattern  [13]. Aligned with information processing theory  [14] and 
+bounded rationality  [15], experts adopt a step-wise strategy to man-
+age limited cognitive resources. Rather than simultaneous processing, 
+they employ goal-directed attention  [16] to identify and extract task-
+relevant evidence from heterogeneous sources dynamically. In this 
+framework, each reasoning step determines the speciﬁc evidence re-
+quired for the next, making accurate evidence acquisition the bottleneck 
+for successful inference. This suggests that ﬁnancial reasoning perfor-
+mance is limited less by raw logic than by the ability to retrieve precise, 
+task-conditioned information during intermediate steps.
+This observation raises a fundamental question: Is multimodal ﬁnan-
+cial reasoning fundamentally limited by reasoning capability, or by the ability 
+to acquire accurate and task-relevant evidence during intermediate steps? We 
+hypothesize that the primary source of reasoning errors lies in incorrect 
+https://doi.org/10.1016/j.inﬀus.2026.104550
+Received 3 April 2026; Received in revised form 6 June 2026; Accepted 9 June 2026
+Information Fusion 136 (2026) 104550 
+Available online 10 June 2026 
+1566-2535/© 2026 Elsevier B.V. All rights are reserved, including those for text and data mining, AI training, and similar technologies. 
+
+
+===== PAGE 2 =====
+
+S. Deng et al.
+Fig. 1. An illustrative example of ﬁnancial multimodal reasoning via single MLLM and SEA.
+or incomplete intermediate evidence, rather than deﬁciencies in reason-
+ing itself.
+In this work, we are motivated to propose SEA (Step-wise Evidence 
+Acquisition) for multi-agent systems to address the challenge of cascad-
+ing reasoning failures caused by poor intermediate evidence quality. 
+SEA explicitly models multimodal ﬁnancial reasoning as a step-wise pro-
+cess of evidence acquisition and reasoning. Instead of forcing a single 
+model to process all multimodal inputs in a single pass, SEA decom-
+poses the reasoning process into a sequence of sub-tasks, where each 
+step identiﬁes and retrieves the speciﬁc evidence required for subse-
+quent inference. Speciﬁcally, a planning agent ﬁrst decomposes the task 
+into sub-tasks and determines the information needed at each step. It 
+then generates targeted evidence-seeking queries, which are routed to 
+specialized agents responsible for extracting information from diﬀerent 
+sources, including ﬁnancial images, textual context, and external ﬁnan-
+cial knowledge. The retrieved evidence is accumulated in a shared evi-
+dence memory and used to guide step-wise reasoning. To support collab-
+oration among agents, SEA adopts a query-based communication mech-
+anism that enables targeted evidence exchange among agents. Rather 
+than relying on complex structured protocols, the planner issues con-
+cise natural-language queries, and specialized agents return focused re-
+sponses. This design mirrors how human experts solve ﬁnancial prob-
+lems by asking targeted questions to obtain necessary information, re-
+ducing redundant information, and improving the quality of intermedi-
+ate evidence.
+We evaluate our proposed multi-agent SEA on three benchmarks: 
+FinMR, FAMMA, MMMU-Finance  [7,9,17]. The experimental results 
+demonstrate its strong performance over the state-of-the-art baselines, 
+yielding average gains by 13.68% accuracy. Furthermore, the suggested 
+dynamic task decomposition strategy yields 6.14% accuracy gains on 
+average, compared to the static strategy. Finally, the query-based 
+communication mechanism exceeds previous methods, e.g., pipeline-
+based  [18] , controller-based  [19], and debate-based  [20] mecha-
+nisms, by at least 4.17%, indicating that our query-based methods can 
+better align the collaboration between multi-agents, deliver evidence 
+with higher utilities for the downstream reasoning.
+Our contributions can be summarized as follows:
+• We propose SEA, a multi-agent framework that explicitly models task 
+decomposition, evidence acquisition, and evidence-guided reason-
+ing, enabling dynamic integration of visual, textual, and knowledge-
+based information.
+• We introduce a query-based communication mechanism in which 
+agents interact via concise, step-conditioned natural-language 
+queries, enabling eﬀective and interpretable evidence exchange.
+• Extensive experiments on three multimodal ﬁnancial reasoning 
+benchmarks demonstrate that SEA consistently outperforms strong 
+Information Fusion 136 (2026) 104550 
+2 
+
+
+===== PAGE 3 =====
+
+S. Deng et al.
+baselines and mitigates perception errors and knowledge insuﬃ-
+ciency by improving intermediate evidence quality.
+The remainder of this paper is organized as follows. Section 2 reviews 
+related work on ﬁnancial multimodal reasoning, active information ac-
+quisition, and multi-agent/tool-augmented reasoning, positioning SEA 
+within existing studies. Section 3 presents the proposed SEA frame-
+work, including the problem formulation, planner-guided task decom-
+position, multi-source evidence acquisition, evidence-guided reasoning, 
+and query-based communication protocol. Section 4 describes the exper-
+imental setup, benchmark datasets, and baseline methods used for eval-
+uation. Section 5 reports the main experimental results and provides 
+further analyses of dynamic sub-task generation, evidence acquisition 
+quality, agent communication strategies, and remaining error patterns. 
+Finally, Section 6 concludes the paper and discusses future research di-
+rections.
+2.  Related work
+2.1.  Financial multimodal reasoning
+In the ﬁnancial sector, characterized by intricate decision-making 
+processes, domain-speciﬁc expertise, and sophisticated analysis, LLMs 
+have demonstrated substantial potential in enhancing ﬁnancial reason-
+ing and analytical tasks, such as investment decision-making  [21] and 
+market sentiment analysis  [4,22,23]. Recent evaluations demonstrate 
+strong performance of LLMs on textual ﬁnancial reasoning datasets, in-
+cluding TAT-QA  [24], and FinQA  [10]. However, real-world ﬁnancial 
+reasoning rarely relies on a single textual source. Rather, it typically 
+requires the integration of heterogeneous information from multiple 
+sources.
+Generally, ﬁnancial multimodal reasoning tasks can be categorized 
+into two types: knowledge-driven reasoning and perception-driven reason-
+ing. Knowledge-driven reasoning  [7,9,25] requires MLLMs to lever-
+age deep ﬁnancial expertise, handle advanced ﬁnancial terminologies, 
+and interpret nuanced contextual information. In contrast, perception-
+driven reasoning  [8] mainly assesses visual capabilities, requiring inter-
+pretation of complex ﬁnancial visual data such as charts, graphs, and ta-
+bles. Despite MLLMs achieving strong performance on multimodal tasks 
+across many domains  [26], their performance on ﬁnancial multimodal 
+benchmarks, such as FinMR  [9], FAMMA  [7], and FinMME  [8], re-
+mains weak. Knowledge-driven reasoning is limited by weak command 
+of ﬁnancial expertise and implicit professional conventions. Perception-
+driven reasoning is hindered by inaccurate extraction of ﬁne-grained in-
+formation from dense charts and tables. As a result, MLLMs often miss 
+critical knowledge, numerical details, and visual cues needed for correct 
+ﬁnancial reasoning.
+Beyond benchmark-oriented ﬁnancial reasoning, recent work has 
+also explored LLM agents for ﬁnancial decision-making, especially 
+in trading scenarios. TradingAgents simulates a real-world trading 
+ﬁrm through multiple specialized agents, including fundamental ana-
+lysts, sentiment analysts, technical analysts, traders, bull and bear re-
+searchers, and risk managers  [27]. A recent survey further summarizes 
+the architectures, data inputs, backtesting protocols, and challenges of 
+LLM-based ﬁnancial trading agents  [28]. These works demonstrate the 
+potential of agent-based ﬁnancial decision systems in the ﬁnancial do-
+main. However, they mainly focus on market trading and portfolio ac-
+tions, whereas our work studies multimodal ﬁnancial reasoning over 
+charts, tables, textual contexts, and domain knowledge.
+2.2.  Active information acquisition
+Sequential information acquisition has been widely studied as a way 
+to reduce unnecessary computation and improve decision eﬃciency.  
+Early works in adaptive computation introduced dynamic inference 
+mechanisms, such as adaptive computation time  [29], which allow 
+neural networks to learn halting decisions during reasoning. Related ap-
+proaches include early-exit Transformers  [30] and selective attention 
+mechanisms that dynamically allocate computation resources. Beyond 
+eﬃciency-driven  adaptive models, active feature acquisition has been 
+studied under a decision-theoretic framework. Classiﬁcation with costly 
+features was formulated as a reinforcement learning problem, where 
+the agent sequentially decides which features to observe  [31]. Simi-
+larly, sequential feature acquisition under uncertainty was proposed to 
+balance accuracy and acquisition cost  [32]. These methods explicitly 
+model information cost but focus primarily on tabular or static feature 
+settings. In vision and multimodal domains, active perception has been 
+explored through glimpse-based models  [33] and sequential attention 
+mechanisms that learn where to look next  [34]. More recently, adap-
+tive token selection strategies in Transformers  [35] dynamically prune 
+irrelevant tokens to improve eﬃciency.
+Recent studies on MLLMs also highlight the importance of selectively 
+using visual information. Visual In-Context Learning improves MLLMs 
+by retrieving visual demonstrations, summarizing images according to 
+task intent, and composing intent-oriented demonstrations for down-
+stream reasoning  [36]. This line of work suggests that multimodal rea-
+soning beneﬁts from task-relevant visual information selection rather 
+than indiscriminate visual encoding.
+However, existing approaches typically optimize for computational 
+eﬃciency,  or feature cost, or demonstration selection, rather than the 
+utilities of structured reasoning. In contrast, our work frames multi-
+modal ﬁnancial reasoning as a sequential information acquisition pro-
+cess in which the model explicitly determines what evidence is needed 
+from images, textual context, and an external ﬁnancial knowledge base, 
+as well as when to stop. Instead of passively encoding all modalities, our 
+system actively controls when and how evidence is retrieved, enabling 
+demand-driven reasoning.
+2.3.  Multi-agent and tool-augmented reasoning
+Recent advancements in LLMs have shown that integrating exter-
+nal tools or coordinating multiple agents can signiﬁcantly enhance rea-
+soning capabilities  [37,38]. Tool-augmented frameworks such as Re-
+Act  [37] interleave reasoning and acting, enabling models to query 
+external environments during inference. Similarly, ToolFormer  [38] 
+equips language models with the ability to decide when to invoke exter-
+nal tools within a generation process. These approaches extend language 
+models beyond passive text generation, allowing interaction with struc-
+tured resources such as calculators, search engines, and code execution 
+environments.
+Retrieval-augmented reasoning further improves the factuality and 
+reliability of complex reasoning by incorporating external knowledge 
+into intermediate reasoning steps. For example, RARE extends a mutual 
+reasoning framework with retrieval actions and a retrieval-augmented 
+factuality scorer to prioritize factually grounded reasoning paths  [39]. 
+Related studies on multilingual knowledge graphs also demonstrate 
+that structured knowledge, relational semantics, and contextual enrich-
+ment are important for knowledge-intensive reasoning and alignment 
+tasks  [40,41]. These studies suggest that external knowledge sources 
+can provide useful semantic and relational evidence for complex rea-
+soning.
+In parallel, multi-agent reasoning systems decompose complex tasks 
+into specialized roles, such as planner, executor, and veriﬁer agents. 
+Frameworks such as AutoGen  [19] and subsequent works  [42] coordi-
+nate multiple LLM-based agents through iterative communication, en-
+abling collaborative problem solving across multiple steps. Recent stud-
+ies have also extended role-specialized collaboration to high-stakes mul-
+timodal domains. For instance, MAM decomposes multimodal medical 
+diagnosis into specialized agents, including a general practitioner, spe-
+cialist team, radiologist, medical assistant, and director, demonstrating 
+the eﬀectiveness of modular collaboration across text, image, audio, and 
+video modalities  [43]. These systems typically rely on prompt-based 
+Information Fusion 136 (2026) 104550 
+3 
+
+
+===== PAGE 4 =====
+
+S. Deng et al.
+Table 1 
+Comparison of representative techniques, including their main ideas, advantages, and limitations.
+Technique Representative Works Main Idea Advantages Limitations
+Multimodal CoT FinMR  [9]; 
+FAMMA  [7]; 
+FinMME  [8]; 
+FinMMR  [12]
+Evaluates models on ﬁnancial questions 
+involving textual context, charts, tables, 
+and domain knowledge.
+Provides realistic benchmarks for 
+assessing ﬁnancial expertise, numerical 
+reasoning, and visual understanding.
+Existing MLLMs often suﬀer from 
+perception errors, weak domain 
+knowledge, and insuﬃcient  
+cross-modal alignment.
+LLM-based ﬁnancial 
+agents
+TradingAgents  [27]; 
+LLM trading agent 
+survey  [28]
+Uses multiple LLM agents to simulate 
+ﬁnancial decision-making workﬂows 
+such as market analysis, trading, and 
+risk assessment.
+Demonstrates the potential of 
+role-specialized agents in ﬁnancial 
+decision systems.
+Mainly focuses on trading or 
+portfolio actions rather than 
+evidence-grounded multimodal 
+ﬁnancial reasoning.
+Active information 
+acquisition
+Adaptive computation 
+time  [29]; active feature 
+acquisition  [31,32]; 
+active 
+perception  [33,34]; 
+adaptive token 
+selection  [35]
+Dynamically selects features, tokens, or 
+visual regions to reduce unnecessary 
+computation or acquisition cost.
+Improves computational eﬃciency  and 
+encourages selective information 
+processing.
+Usually optimizes eﬃciency  or 
+feature cost, rather than 
+task-conditioned evidence utility 
+for multi-step reasoning.
+Visual information 
+selection
+Visual In-Context 
+Learning  [36]
+Selects and summarizes task-relevant 
+visual demonstrations or visual 
+information for MLLM reasoning.
+Shows that selective visual evidence 
+can improve multimodal reasoning.
+Focuses on demonstration 
+selection or visual prompting, 
+without explicit step-wise evidence 
+acquisition.
+Tool-augmented 
+reasoning
+ReAct  [37]; 
+ToolFormer  [38]
+Enables LLMs to interact with external 
+tools such as search engines, 
+calculators, or code executors.
+Extends LLMs beyond passive 
+generation and supports external 
+knowledge or computation.
+Tool use is often implicit or loosely 
+controlled, and may not retrieve 
+the precise evidence needed at 
+each reasoning step.
+Retrieval-augmented 
+reasoning and 
+KG-based methods
+RARE  [39]; RSA  [40]; 
+AKR  [41]
+Incorporates external knowledge, 
+retrieval actions, or structured 
+relational semantics into reasoning.
+Improves factual grounding and 
+highlights the value of structured 
+knowledge and contextual enrichment.
+Usually focuses on knowledge 
+retrieval, factuality, or entity 
+alignment, rather than multimodal 
+ﬁnancial evidence acquisition.
+Multi-agent reasoning AutoGen  [19]; 
+MAM  [43]; role-aware 
+agents  [18]; 
+debate-based 
+agents  [20]
+Decomposes complex tasks into 
+multiple specialized agents that 
+collaborate through predeﬁned roles or 
+communication protocols.
+Supports modular problem solving and 
+role-specialized reasoning.
+Existing collaboration is often 
+prompt-driven, static, or 
+debate-oriented, which may 
+introduce redundant or misaligned 
+evidence.
+SEA (ours) This work Performs step-wise task decomposition, 
+targeted evidence acquisition, and 
+evidence-guided reasoning through 
+query-based multi-agent 
+communication.
+Dynamically retrieves task-relevant 
+evidence from visual inputs, textual 
+context, and ﬁnancial knowledge, 
+improving reasoning reliability and 
+interpretability.
+Still depends on the quality of 
+planner-generated queries and 
+evidence returned by specialized 
+agents.
+role assignment and predeﬁned communication protocols to guide agent 
+interactions.
+Despite their eﬀectiveness, most existing approaches remain largely 
+prompt-driven and are designed for general-purpose reasoning, trad-
+ing decisions, retrieval-augmented knowledge reasoning, or domain-
+speciﬁc diagnosis. They do not explicitly address the challenges of mul-
+timodal ﬁnancial reasoning, where accurate evidence acquisition from 
+heterogeneous sources, including textual context, tables, charts, and ﬁ-
+nancial knowledge, is critical. Moreover, existing frameworks often lack 
+mechanisms for targeted information seeking, leading to redundant or 
+misaligned evidence that propagates errors in downstream reasoning.
+In contrast, our approach introduces a structured framework for ev-
+idence acquisition tailored to multimodal ﬁnancial reasoning. Rather 
+than relying on implicit tool usage, static demonstrations, retrieval 
+alone, or loosely coordinated agent interactions, we design a simple yet 
+eﬀective communication protocol that enables agents to exchange con-
+cise, task-driven queries and responses iteratively. By focusing on tar-
+geted information acquisition and agent communication, our framework 
+improves both the relevance of evidence and the reliability of down-
+stream reasoning without requiring additional model training. Table 1 
+provides a comparison of representative techniques we discussed, in-
+cluding their main ideas, advantages, and limitations.
+3.  Methodology
+3.1.  Problem formulation
+We study multimodal ﬁnancial reasoning as a sequential evidence-
+grounded decision problem over heterogeneous inputs. Each instance is 
+deﬁned as
+𝑋 = (𝐶, 𝐼, 𝑄, 𝑂), (1)
+where 𝐶 denotes the textual context (e.g., the context of a question), 
+𝐼 = {𝑖1, … , 𝑖𝑆 } denotes the set of visual inputs (e.g., charts, tables, or 
+ﬁgures), 𝑄 is the question, and 𝑂 = {𝑜1, … , 𝑜𝑀 } is the set of candidate 
+answers (options). The ground-truth answer is 𝑌 ∗ ∈ 𝑂.
+Unlike conventional single-pass prediction, we model reasoning as 
+an iterative process that alternates between planning, evidence acquisi-
+tion, and evidence-guided reasoning. At reasoning step 𝑛, the system main-
+tains: an evidence state 𝐸𝑛, which stores all retrieved evidence up to step 
+𝑛; and a reasoning trajectory 𝑅𝑛, which stores all intermediate reasoning 
+outputs up to step 𝑛. Formally,
+𝐸𝑛 = {𝑒1, … , 𝑒|𝐸𝑛|}, 𝑅 𝑛 = {𝑟1, … , 𝑟𝑛}. (2)
+The process starts from empty memory: 𝐸0 = ∅, 𝑅0 = ∅.
+The goal is to predict the ﬁnal answer ̂𝑌 ∈ 𝑂 by progressively col-
+lecting task-relevant evidence and conditioning each reasoning step on 
+the accumulated evidence. This formulation explicitly separates what 
+information is needed from how the answer is inferred, thereby reducing 
+hallucination and improving interpretability. For clarity, the main nota-
+tions used in the subsequent formulation and analysis are summarized 
+in Table A.8 in Appendix A.
+3.2.  Overview of SEA
+SEA (Step-wise Evidence Acquisition) is a multi-agent framework 
+that solves multimodal ﬁnancial reasoning through a closed-loop inter-
+action among three functional modules:
+Information Fusion 136 (2026) 104550 
+4 
+
+
+===== PAGE 5 =====
+
+S. Deng et al.
+Fig. 2. Overview of SEA, a multi-agent framework for step-wise evidence acquisition. The planner generates sub-task-conditioned queries under a uniﬁed commu-
+nication protocol, which are routed to multi-source evidence agents (image, text, and knowledge). Retrieved evidence is accumulated into a shared evidence state 
+and used by the reasoning agent for step-wise inference. The entire process forms a closed-loop interaction that tightly couples planning, evidence acquisition, and 
+reasoning.
+1. a planner agent 𝑃 that decomposes the problem into step-wise sub-
+tasks and issues evidence-seeking queries;
+2. a set of evidence-seeking agents {𝐼 , 𝐶 , 𝐾 } that retrieve evidence 
+from visual inputs, textual context, and external ﬁnancial knowl-
+edge, respectively;
+3. a reasoning agent 𝑅 that produces intermediate reasoning condi-
+tioned on the retrieved evidence including report issues of suﬃcient  
+evidence.
+As illustrated in Fig. 2, SEA proceeds iteratively. At each step, the 
+planner determines the current sub-task, formulates a set of targeted 
+natural-language queries, and decides whether the current evidence is 
+suﬃcient  to stop. The queries are routed to the appropriate evidence-
+seeking agents, whose outputs are integrated into the shared evidence 
+state. The reasoning agent then updates the reasoning trajectory based 
+on the current sub-task and accumulated evidence. The process repeats 
+until the planner determines that the available evidence is suﬃcient  to 
+answer the original question.
+This design explicitly treats multimodal ﬁnancial reasoning as a pro-
+cess of demand-driven evidence acquisition: the system does not attempt 
+to process all information uniformly at once, but instead retrieves the 
+speciﬁc evidence required by the current reasoning step.
+3.3.  Planner-guided task decomposition
+The planner agent 𝑃 controls the overall reasoning process. At step 
+𝑛, given the input instance 𝑋, the previous evidence state 𝐸𝑛−1, and 
+the previous reasoning trajectory 𝑅𝑛−1, the planner outputs a sub-task 
+𝑡𝑛 describing the current reasoning objective; a set of natural-language 
+queries 𝑞𝑛 = {𝑞𝑛,1, … , 𝑞𝑛,𝐿𝑛 } for evidence acquisition; and a termination 
+ﬂag 𝑠𝑛 ∈ {continue, stop}. Formally,
+(𝑡𝑛, 𝑞𝑛, 𝑠𝑛) = 𝑃 (𝑋, 𝐸𝑛−1, 𝑅𝑛−1). (3)
+The sub-task 𝑡𝑛 speciﬁes the information needed to advance the rea-
+soning process, such as extracting a numerical quantity from a chart, 
+identifying a constraint from the context, or retrieving a domain for-
+mula. The query set 𝑞𝑛 operationalizes this sub-task into concrete infor-
+mation requests that can be answered by specialized agents. The termi-
+nation ﬂag 𝑠𝑛 indicates whether the current evidence state is already 
+suﬃcient  to answer the original question 𝑄:
+𝑠𝑛 =
+{
+stop, if 𝑃 judges that (𝐸𝑛−1, 𝑅𝑛−1) is suﬃcient  for 𝑄,
+continue, otherwise.
+(4)
+This formulation makes the planner adaptive rather than static. In-
+stead of committing to a ﬁxed chain of sub-tasks in advance, the planner 
+revises subsequent reasoning goals according to the evidence accumu-
+lated so far. Such adaptive decomposition is particularly important in ﬁ-
+nancial reasoning, where relevant information is often distributed across 
+text, tables, charts, and external knowledge. The complete planner-agent 
+prompt design is provided in Appendix B.1.
+3.4.  Multi-source evidence acquisition
+Given the query set 𝑞𝑛 = {𝑞𝑛,1, … , 𝑞𝑛,𝐿𝑛 } generated at step 𝑛, each 
+query is routed to the most appropriate evidence-seeking agent:
+𝑎𝑛,𝓁 = 𝜌(𝑞𝑛,𝓁), 𝑎 𝑛,𝓁 ∈ {𝐼 , 𝐶 , 𝐾 }, (5)
+where 𝜌(⋅) denotes the routing function. The corresponding evidence is 
+then retrieved as
+𝑒𝑛,𝓁 =
+⎧
+⎪
+⎨
+⎪⎩
+𝐼 (𝐼, 𝑞𝑛,𝓁), if 𝑎𝑛,𝓁 = 𝐼 ,
+𝐶 (𝐶, 𝑞𝑛,𝓁), if 𝑎𝑛,𝓁 = 𝐶 ,
+𝐾 (, 𝑞𝑛,𝓁), if 𝑎𝑛,𝓁 = 𝐾 ,
+(6)
+where  denotes the external ﬁnancial knowledge base. The evidence 
+returned at step 𝑛 is collected into
+𝑒𝑛 = {𝑒𝑛,1, … , 𝑒𝑛,𝐿𝑛 }, (7)
+and the evidence state is updated by
+𝐸𝑛 = 𝐸𝑛−1 ∪ 𝑒𝑛. (8)
+The three evidence-seeking agents serve complementary roles. Im-
+age agent 𝐼 extracts structured visual evidence such as values, trends, 
+and relations from charts, tables, and ﬁgures. Context agent 𝐶 iden-
+tiﬁes task-relevant information from the textual context, including vari-
+ables, assumptions, and problem constraints. Knowledge agent 𝐾 re-
+trieves ﬁnancial concepts, formulas, and domain-speciﬁc principles from 
+the external knowledge base .
+Information Fusion 136 (2026) 104550 
+5 
+
+
+===== PAGE 6 =====
+
+S. Deng et al.
+Table 2 
+Statistics of the constructed ﬁnancial knowledge 
+database , including knowledge types and topic 
+diversity.
+ Number  Ratio
+ Database Size  8440  –
+ Knowledge Type
+ Financial Concept  5698  67.51%
+ Math Formula  2742  32.49%
+ Topic Diversity
+ Investment  1063  12.60%
+ Quantitative Methods  819  9.70%
+ Valuation and Risk Models  785  9.30%
+ Financial Markets and Products  776  9.20%
+ Financial Reporting and Analysis  701  8.30%
+ Portfolio Management  684  8.10%
+ Fixed Income  658  7.80%
+ Credit Risk  456  5.40%
+ Foundation of Risk Management  447  5.30%
+ Economics  414  4.90%
+ Operational Risk  346  4.10%
+ Derivatives  338  4.00%
+ Market Risk  329  3.90%
+ Corporate Finance  329  3.90%
+ Liquidity and Treasury Risk  295  3.50%
+A key property of SEA is that evidence acquisition is step-conditioned. 
+The system does not passively summarize all available inputs at once. 
+Rather, it retrieves evidence only when demanded by the current sub-
+task. This improves both the relevance and the precision of interme-
+diate evidence, which is essential for reliable multi-step ﬁnancial rea-
+soning. We provide the complete prompts used by the three evidence-
+seeking agents in Appendix B.2. These prompts specify how the Im-
+age Agent, Context Agent, and Knowledge Agent respond to planner-
+generated queries by extracting visual evidence from 𝐼, textual evidence 
+from 𝐶, and ﬁnancial knowledge from , respectively.
+Financial knowledge base. To alleviate the domain-knowledge limita-
+tions of general-purpose MLLMs, we construct an external ﬁnancial 
+knowledge base  from the training sets of FinMR and FAMMA. Speciﬁ-
+cally, we extract answer explanations, which often contain ﬁnancial con-
+cepts, formulas, and reasoning procedures, and use an LLM to identify 
+key terms together with their deﬁnitions and mathematical expressions 
+across 15 ﬁnancial topics. The resulting database provides structured 
+domain knowledge that supports downstream evidence retrieval. The 
+statistics of  are reported in Table 2.
+3.5.  Evidence-guided reasoning
+After updating the evidence state, the reasoning agent 𝑅 performs 
+the current inference step. At step 𝑛, it takes as input the sub-task 𝑡𝑛, the 
+updated evidence state 𝐸𝑛, and the previous reasoning trajectory 𝑅𝑛−1, 
+and produces an intermediate reasoning output 𝑟𝑛:
+𝑟𝑛 = 𝑅(𝑡𝑛, 𝐸𝑛, 𝑅𝑛−1). (9)
+The reasoning trajectory is then updated as
+𝑅𝑛 = 𝑅𝑛−1 ∪ {𝑟𝑛}. (10)
+The interaction between evidence acquisition and reasoning is 
+tightly coupled. If the currently accumulated evidence is insuﬃcient  
+(i.e., the reasoning agent reports issues as a reasoning step), the planner 
+generates a new sub-task and additional queries at the next step. If the 
+planner determines that the evidence is suﬃcient,  the iterative process 
+terminates and the ﬁnal answer is produced:
+̂𝑌 = ﬁnal
+𝑃 (𝑋, 𝐸𝑁 , 𝑅𝑁 ), (11)
+where 𝑁 is the ﬁnal reasoning step satisfying 𝑠𝑁 = stop.
+This design ensures that the ﬁnal decision is grounded in an explicit 
+evidence trail rather than implicit latent reasoning alone. Each reason-
+ing step is therefore traceable to retrieved evidence, improving robust-
+ness and interpretability. The implementation details of the reasoning 
+agent are provided in Appendix B.3.
+3.6.  Query-based communication protocol
+SEA uses an eﬀective query-based communication protocol to co-
+ordinate agents. Instead of relying on complex symbolic message pass-
+ing or open-ended multi-agent debate, the planner communicates with 
+evidence-seeking agents through concise natural-language queries. This 
+design has two advantages. First, it aligns naturally with the capabil-
+ities of modern LLM/MLLM agents. Second, it constrains information 
+exchange to the evidence required by the current sub-task, reducing re-
+dundancy and improving alignment between planning and retrieval.
+The protocol operates as follows. At each step, the planner ﬁrst de-
+cides whether reasoning should continue. If 𝑠𝑛 = stop, the system ter-
+minates evidence acquisition and produces the ﬁnal answer using the 
+accumulated evidence and reasoning history. Otherwise, the planner 
+generates a query set 𝑞𝑛, each query is routed to a specialized evidence-
+seeking agent, and the returned evidence is added to the shared memory 
+for downstream reasoning. Algorithm 1 summarizes the complete SEA 
+procedure.
+Algorithm 1 SEA: step-wise evidence acquisition for multimodal ﬁnan-
+cial reasoning.
+Require: Input instance 𝑋 = (𝐶, 𝐼, 𝑄, 𝑂), knowledge base , maximum 
+number of steps 𝑁max
+Ensure: Predicted answer ̂𝑌
+1: Initialize  evidence state 𝐸0 ← ∅
+2: Initialize  reasoning trajectory 𝑅0 ← ∅
+3: for 𝑛 = 1 to 𝑁max do
+4: (𝑡𝑛, 𝑞𝑛, 𝑠𝑛) ← 𝑃 (𝑋, 𝐸𝑛−1, 𝑅𝑛−1)
+5: if 𝑠𝑛 = stop then
+6: ̂𝑌 ← ﬁnal
+𝑃 (𝑋, 𝐸𝑛−1, 𝑅𝑛−1)
+7: return ̂𝑌
+8: end if
+9: 𝑒𝑛 ← ∅
+10: for each query 𝑞𝑛,𝓁 ∈ 𝑞𝑛 do
+11: 𝑎𝑛,𝓁 ← 𝜌(𝑞𝑛,𝓁)
+12: if 𝑎𝑛,𝓁 = 𝐼 then
+13: 𝑒𝑛,𝓁 ← 𝐼 (𝐼, 𝑞𝑛,𝓁)
+14: else if 𝑎𝑛,𝓁 = 𝐶 then
+15: 𝑒𝑛,𝓁 ← 𝐶 (𝐶, 𝑞𝑛,𝓁)
+16: else if 𝑎𝑛,𝓁 = 𝐾 then
+17: 𝑒𝑛,𝓁 ← 𝐾 (, 𝑞𝑛,𝓁)
+18: end if
+19: 𝑒𝑛 ← 𝑒𝑛 ∪ {𝑒𝑛,𝓁}
+20: end for
+21: 𝐸𝑛 ← 𝐸𝑛−1 ∪ 𝑒𝑛
+22: 𝑟𝑛 ← 𝑅(𝑡𝑛, 𝐸𝑛, 𝑅𝑛−1)
+23: 𝑅𝑛 ← 𝑅𝑛−1 ∪ {𝑟𝑛}
+24: end for
+25: ̂𝑌 ← ﬁnal
+𝑃 (𝑋, 𝐸𝑁max , 𝑅𝑁max )
+26: return ̂𝑌
+4.  Experiment
+4.1.  Experimental setup
+Our framework instantiates agents based on three frontier models: 
+GPT-4o  [1], Gemini-2.5-Flash  [2], and Claude-4-5-Sonnet  [3]. For each 
+Information Fusion 136 (2026) 104550 
+6 
+
+
+===== PAGE 7 =====
+
+S. Deng et al.
+Table 3 
+Statistics and characteristics of the evaluation datasets, including test set size, task-type distribution, main image types, knowledge level, and reasoning requirements.
+ Dataset  Test Size  Math  Expertise Main Image Type Knowledge 
+Level
+Knowledge 
+Intensive?
+Numerical 
+Math?
+Advanced 
+Math?
+ FinMR  640  242 (37.8%)  398 (62.2%) Charts, tables, 
+diagrams, time 
+series, maps
+College Yes Yes Yes
+ FAMMA  200  100 (50.0%)  100 (50.0%) Charts, tables, 
+diagrams
+College Yes Yes Yes
+ MMMU-Finance  1100  1100 (100.0%)  – Tables College Yes Yes No
+experiment, all agents are instantiated using the same backbone model 
+to ensure a fair comparison across diﬀerent model families. To improve 
+reproducibility and reduce randomness in multi-step reasoning, we use 
+deterministic decoding for all agents, with the temperature set to 0.0. 
+Each agent is prompted to return structured JSON outputs, including the 
+planner’s stopping decision, subtask, target agent, and evidence-seeking 
+queries. The full prompt templates for all agents are provided in Ap-
+pendix B.
+To address the domain knowledge limitations of general-purpose 
+MLLMs, we further construct an external ﬁnancial knowledge base 
+using expert-annotated explanatory data. See more details of the ﬁnan-
+cial knowledge base in Section 3.4. These human-annotated resources 
+provide detailed explanations of ﬁnancial concepts, formulas, and ap-
+plication scenarios, and therefore serve as a high-quality repository of 
+external ﬁnancial expertise. The knowledge agent retrieves relevant ﬁ-
+nancial concepts, formulas, and domain-speciﬁc rules from this database 
+according to the query generated by the planner.
+To keep the overall reasoning process computationally tractable and 
+to avoid unnecessarily long planning chains, we set the maximum num-
+ber of planning steps to 𝑁max = 6. At each step, the planner generates at 
+most three evidence-seeking queries, corresponding to the image agent, 
+context agent, and knowledge agent. Therefore, the maximum number 
+of agent invocations for one sample is bounded by 1 + 𝑁max(1 + 3 + 1), 
+where the three terms inside the parentheses correspond to one plan-
+ner call, up to three evidence-agent calls, and one reasoning-agent call 
+at each step, and the additional call denotes the ﬁnal answer genera-
+tion. In practice, the reasoning process may terminate earlier once the 
+planner determines that the accumulated evidence is suﬃcient.
+4.2.  Benchmarks
+We evaluate the proposed method on three ﬁnancial multimodal 
+reasoning benchmarks: FinMR, FAMMA, and MMMU-Finance. These 
+benchmarks are selected because they diﬀer in domain scope, ques-
+tion type, evidence dependency, and diﬃculty  level, thereby allowing 
+us to evaluate whether SEA generalizes across diﬀerent ﬁnancial rea-
+soning scenarios. To prevent knowledge leakage, all experiments are 
+conducted on the test sets only, since the training sets of FinMR and 
+FAMMA are used to construct the external ﬁnancial knowledge base. 
+Table 3 summarizes the statistics and characteristics of the three testing
+datasets.
+FinMR  [9] is an expert-level ﬁnancial multimodal reasoning bench-
+mark consisting of 3200 ﬁnancial reasoning questions. Each instance 
+includes detailed textual context, one or more ﬁnancial images, can-
+didate options, and expert-annotated explanations. FinMR is designed 
+to evaluate professional-level ﬁnancial reasoning, covering diverse ﬁ-
+nancial topics and requiring the integration of mathematical reasoning, 
+domain knowledge, and visual interpretation. In our evaluation subset, 
+FinMR contains both mathematical reasoning questions and ﬁnancial ex-
+pertise questions. The mathematical subset mainly requires numerical 
+calculation, formula application, and quantitative comparison, while the 
+expertise subset focuses more on conceptual understanding, ﬁnancial in-
+terpretation, and domain-speciﬁc judgment. This makes FinMR the most 
+knowledge-intensive and expert-oriented benchmark in our evaluation.
+FAMMA  [7] is a multilingual ﬁnancial multimodal reasoning bench-
+mark designed to assess college-level and advanced ﬁnancial expertise. 
+The original benchmark contains ﬁnancial question-answer pairs col-
+lected from textbooks and exams, spanning multiple ﬁnance subﬁelds 
+such as corporate ﬁnance, asset management, and ﬁnancial engineer-
+ing. Each question is paired with one or more images, such as tables, 
+charts, and diagrams, requiring models to combine textual understand-
+ing, visual evidence extraction, and ﬁnancial knowledge. Compared 
+with FinMR, FAMMA emphasizes multilinguality and academic ﬁnan-
+cial knowledge. In our evaluation subset, FAMMA is evenly divided into 
+mathematical reasoning and expertise-oriented questions, allowing us 
+to test whether SEA is eﬀective across both quantitative and conceptual 
+ﬁnancial reasoning.
+MMMU-Finance  [17] is a ﬁnance-focused subset of the Multi-
+discipline Multimodal Understanding benchmark. MMMU is designed 
+to evaluate college-level multimodal understanding and deliberate rea-
+soning across a wide range of academic disciplines. We use the ﬁnance-
+related subset, which contains samples drawn from Finance, Economics, 
+and Accounting1 Unlike FinMR and FAMMA, which are speciﬁcally con-
+structed for ﬁnancial multimodal reasoning, MMMU-Finance provides a 
+broader academic setting with more standardized exam-style questions. 
+Notably, approximately 95% of the visual inputs in this subset are ﬁnan-
+cial tables, making it especially useful for evaluating table-based numer-
+ical reasoning and structured ﬁnancial information extraction.
+Overall, the three benchmarks provide complementary evaluation 
+settings. FinMR tests expert-level ﬁnancial reasoning with rich textual 
+and visual evidence; FAMMA evaluates multilingual and college-level 
+ﬁnancial reasoning across heterogeneous visual inputs; and MMMU-
+Finance examines broader academic ﬁnance reasoning, with a strong 
+emphasis on table-based visual evidence. Therefore, evaluating SEA on 
+these datasets allows us to assess its generalization across diﬀerent levels 
+of diﬃculty,  evidence sources, and ﬁnancial reasoning types.
+4.3.  Baselines
+The following baseline methods are compared in our experiments:
+CoT  [44] is a method that instructs LLMs to generate intermediate rea-
+soning steps (i.e., Let’s think step by step) before producing the ﬁnal an-
+swer. It serves as a strong single-agent baseline by improving reasoning 
+transparency and decomposing complex ﬁnancial problems into sequen-
+tial inference steps.
+MAD  [45] studies the impact of decision-making protocols in multi-
+agent debate systems. Multiple agents ﬁrst generate candidate solutions 
+and exchange reasoning through several discussion rounds. A prede-
+ﬁned decision protocol, such as voting or consensus, is then applied to 
+determine the ﬁnal answer.
+RAA  [18] is a role-aware multi-agent framework for ﬁnancial question 
+answering, comprising an Evidence Retriever, a CoT-based Generator, 
+and an Expert Reviewer. The retriever gathers ﬁnancial knowledge, the 
+generator produces an initial answer, and the reviewer reﬁnes it through 
+critique and correction.
+1 Economics and Accounting are closely related subﬁelds within the broader 
+ﬁnancial domain and frequently appear in ﬁnancial reasoning tasks.
+Information Fusion 136 (2026) 104550 
+7 
+
+
+===== PAGE 8 =====
+
+S. Deng et al.
+Table 4 
+Performance comparison across three ﬁnancial multimodal reasoning benchmarks: FinMR, FAMMA, and MMMU-Finance. Results are reported as accuracy (%). 
+Math and Expertise denote subsets requiring quantitative reasoning and domain-speciﬁc ﬁnancial knowledge, respectively. Numbers in parentheses indicate the 
+absolute improvement over the CoT baseline. Bold indicates the best result in each column.
+Model Method  FinMR(Acc%)  FAMMA(Acc%)  MMMU-Finance(Acc%)
+ ALL  Math(37.8%)  Expertise(62.2%)  ALL  Math(50%)  Expertise(50%)  Math
+GPT-4o
+ CoT  54.17  49.40  57.07  54.50  53.00  56.00  62.77
+ MAD  58.31 (↑4.14)  54.39 (↑4.99)  60.70 (↑3.63)  58.5 (↑4.00)  58.00 (↑5.00)  59.00 (↑3.00)  67.00 (↑4.23)
+ RAA  59.17 (↑5.00)  53.21 (↑3.81)  62.79 (↑5.72)  60.00 (↑5.50)  59.00 (↑6.00)  61.00 (↑5.00)  69.00 (↑6.23)
+ SEA(ours)  62.37 (↑8.23)  56.62 (↑7.22)  65.85 (↑8.78)  63.00 (↑8.50)  61.00 (↑8.00)  65.00 (↑9.00)  74.00 (↑11.23)
+Gemini-2.5-Flash
+ CoT  61.20  56.79  63.88  61  58.00  64.00  63.77
+ MAD  66.19 (↑4.99)  59.79 (↑3.11)  70.01 (↑6.13)  63.00 (↑2.00)  59.00 (↑1.00)  67.00 (↑3.00)  69.44 (↑5.67)
+ RAA  69.42 (↑7.22)  62.44 (↑5.65)  72.06 (↑8.18)  64.50 (↑3.50)  60.00 (↑2.00)  62.00 (↑5.00)  71.23 (↑7.46)
+ SEA(ours)  74.80 (↑13.60)  66.20 (↑9.41)  80.00 (↑16.12)  69.10 (↑8.10)  65.00 (↑7.00)  73.20 (↑9.20)  79.00 (↑15.23)
+Claude-4-5-Sonnet
+ CoT  60.89  58.59  62.28  60.00  59.00  61.00  63.78
+ MAD  74.46 (↑13.58)  72.31 (↑13.72)  75.77 (↑13.49)  61.00 (↑1.00)  60.00 (↑1.00)  62.00 (↑1.00)  73.55 (↑9.77)
+ RAA  71.49 (↑10.61)  70.11 (↑11.52)  72.33 (↑10.05)  61.00 (↑1.00)  59.00 (-)  63.00 (↑2.00)  78.00 (↑14.22)
+ SEA(ours)  78.49 (↑17.61)  76.50 (↑17.91)  79.70 (↑17.42)  64.50 (↑4.5)  63.00 (↑4.00)  66.00 (↑5.00)  82.70 (↑18.92)
+5.  Results
+In this section, we evaluate SEA from multiple perspectives to under-
+stand both its overall eﬀectiveness and the sources of its performance 
+gains. We ﬁrst compare SEA with representative baselines on three ﬁ-
+nancial multimodal reasoning benchmarks (Section 5.1), and then pro-
+vide a series of analyses to examine the contribution of its key de-
+sign choices (Section 5.2), dynamic sub-task generation (Section 5.3), 
+evidence acquisition quality (Section 5.4), agent communication (Sec-
+tion 5.5), and remaining error patterns (Section 5.6).
+5.1.  Overall results
+Table 4 reports the performance comparison of diﬀerent reason-
+ing strategies across three multimodal ﬁnancial reasoning benchmarks: 
+FinMR, FinMMA, and MMMU-Finance. Overall, our proposed SEA 
+method consistently achieves the best performance across all models and 
+datasets, demonstrating the eﬀectiveness of demand-driven evidence ac-
+quisition for multimodal ﬁnancial reasoning.
+Across all benchmarks, SEA signiﬁcantly outperforms the standard 
+Chain-of-Thought (CoT) baseline. For example, on the FinMR bench-
+mark, SEA improves the overall accuracy from 54.17% to 62.37% for 
+GPT-4o, from 61.20% to 74.80% for Gemini-2.5-Flash, and from 60.89% 
+to 78.49% for Claude-4-5-Sonnet. Notably, the improvement for Claude-
+4-5-Sonnet exceeds 17 percentage points, indicating that the proposed 
+framework can substantially enhance the reasoning capability of strong 
+base models.
+Compared with existing multi-agent reasoning methods such as 
+MAD and RAA, SEA achieves consistently higher performance across 
+all benchmarks. While MAD relies on multi-agent debate and RAA in-
+troduces role-aware reasoning agents, both approaches still process in-
+formation from a static input context. In contrast, SEA explicitly models 
+evidence acquisition as a decision process, enabling the system to dynam-
+ically retrieve task-relevant information from diﬀerent sources before 
+performing reasoning. This design leads to more reliable intermediate 
+reasoning steps and reduces error propagation during multi-step reason-
+ing.
+The improvement of SEA is particularly pronounced on the mathe-
+matical problems of the three benchmarks, which require precise nu-
+merical reasoning and formula application. For example, on the FinMR 
+Math subset, SEA achieves 66.20% accuracy with Gemini-2.5-Flash and 
+76.50% with Claude-4-5-Sonnet, substantially outperforming other rea-
+soning strategies. This suggests that dynamically retrieving relevant for-
+mulas and ﬁnancial concepts helps mitigate calculation errors and im-
+proves reasoning reliability.
+Another important observation is that SEA consistently improves 
+performance across all evaluated base models, including GPT-4o, 
+Gemini-2.5-Flash, and Claude-4-5-Sonnet. Despite the large diﬀerences 
+in model architectures and capabilities, the proposed framework yields 
+stable gains across FinMR, FinMMA, and MMMU. This result indicates 
+that SEA is model-agnostic and can serve as a general framework for 
+enhancing multimodal reasoning in ﬁnancial tasks.
+To further assess the reliability of the observed improvements, we 
+conduct a non-parametric statistical signiﬁcance analysis based on the 
+accuracy scores reported in Table 4. Since the compared methods are 
+evaluated under the same model–dataset–subset setting and the normal-
+ity assumption may not hold for accuracy scores, we use non-parametric 
+tests in Table 5. Speciﬁcally, each model–dataset–subset combination is 
+treated as one evaluation setting, resulting in 21 paired observations 
+for each method. We ﬁrst apply the Friedman test to compare whether 
+there exist overall performance diﬀerences among CoT, MAD, RAA, 
+and SEA. The Friedman test indicates a signiﬁcant diﬀerence among 
+the compared methods, 𝜒 2
+𝐹 (3) = 55 .23, 𝑝 = 6.14 × 10−12, with the signif-
+icance level 𝛼 = 0.05.
+We further compare the average ranks of the methods. SEA obtains 
+the best average rank of 1.00, followed by RAA (2.38), MAD (2.69), 
+and CoT (3.93). The Nemenyi post-hoc test shows that the rank diﬀer-
+ences between SEA and the baseline methods are larger than the critical 
+diﬀerence at 𝛼 = 0.05, indicating that SEA performs signiﬁcantly better 
+than the compared baselines across evaluation settings. In addition, we 
+perform two-sided Wilcoxon signed-rank tests to further conﬁrm the im-
+provements of SEA over CoT (𝑝 = 9.54 × 10−7); MAD (𝑝 = 5.94 × 10−5); 
+and RAA (𝑝 = 5.93 × 10−5). These results suggest that the performance 
+gains of SEA are statistically signiﬁcant under the model–dataset–subset 
+setting rather than being driven by isolated cases.
+Overall, the results demonstrate that explicitly separating informa-
+tion acquisition from reasoning is crucial for solving complex multimodal 
+ﬁnancial problems. By dynamically retrieving task-relevant evidence be-
+fore reasoning, SEA signiﬁcantly improves both reasoning accuracy and 
+robustness compared with existing prompting-based and multi-agent ap-
+proaches.
+5.2.  Ablation study
+To quantify the contribution of each component in SEA, we con-
+duct ablation studies by systematically removing key modules from the 
+full framework. Since the full SEA system built on Claude-4-5-Sonnet 
+achieves the strongest overall performance in Table 4, we use this model 
+as the base for all ablation experiments. These analyses are intended to 
+examine how visual grounding, multi-agent communication, and spe-
+Information Fusion 136 (2026) 104550 
+8 
+
+
+===== PAGE 9 =====
+
+S. Deng et al.
+Table 5 
+Statistical signiﬁcance analysis across 21 model–dataset–subset evaluation settings. The 
+signiﬁcance level is set to 𝛼 = 0.05.
+ Statistical Test  Comparison  Result
+ Friedman test  CoT vs. MAD vs. RAA vs. SEA 𝜒 2
+𝐹 (3) = 55 .23, 𝑝 = 6.14 × 10−12
+ Friedman average rank  SEA / RAA / MAD / CoT 1.00 / 2.38 / 2.69 / 3.93
+ Nemenyi post-hoc test  SEA vs. all baselines  Signiﬁcant at 𝛼 = 0.05
+ Wilcoxon signed-rank test  SEA vs. CoT 𝑝 = 9.54 × 10−7
+ Wilcoxon signed-rank test  SEA vs. MAD 𝑝 = 5.94 × 10−5
+ Wilcoxon signed-rank test  SEA vs. RAA 𝑝 = 5.93 × 10−5
+Table 6 
+Ablation study of SEA on FinMR, FAMMA, MMMU-Finance, using 
+base model Claude-4-5-Sonnet.
+ Method  FinMR%  FAMMA%  MMMU%
+ Full SEA  78.49  64.50  82.70
+ w/o Planner  63.79  60.00  65.30
+ w/o Agent Communication  64.69  61.00  73.21
+ w/o Evidence Seeking Agents  72.19  62.30  78.22
+cialized evidence acquisition jointly aﬀect performance on ﬁnancial 
+multimodal reasoning.
+SEA w/o Planner. In the full framework, the planning agent decom-
+poses the task into step-wise sub-tasks and generates targeted queries to 
+guide evidence acquisition at each reasoning step. In this variant, we re-
+move the planning agent entirely. Instead, each evidence-seeking agent 
+operates based on a ﬁxed, generic instruction (i.e., understanding the im-
+age, context, and question to extract relevant evidence, or retrieving knowl-
+edge from a ﬁnancial knowledge base), without step-speciﬁc guidance. 
+The collected evidence is then directly used by the reasoning agent. As 
+shown in Table 6, this variant achieves performance slightly better than 
+standard CoT reasoning in Table 4, but remains signiﬁcantly inferior to 
+the full SEA framework. This observation highlights that while evidence-
+seeking agents are beneﬁcial, their eﬀectiveness critically depends on 
+ﬁne-grained, step-conditioned guidance. Without an explicit planning 
+mechanism, evidence retrieval becomes coarse and less aligned with the 
+evolving reasoning needs, leading to suboptimal downstream reasoning 
+performance.
+SEA w/o Agent Communication. In this variant, we remove the 
+iterative communication mechanism among the planning agent, the 
+evidence-seeking agents, and the reasoning agent. The planner gener-
+ates the reasoning plan and queries only once, the evidence-seeking 
+agents retrieve information in a single pass, and the reasoning agent 
+produces the ﬁnal answer from the collected evidence. Compared with 
+the full SEA system, this variant yields the largest overall degradation, 
+dropping to 64.69% on FinMR, 61.00% on FAMMA, and 73.21% on 
+MMMU-Finance. These results indicate that iterative multi-agent com-
+munication substantially improves the quality of intermediate evidence 
+and enables more eﬀective coordination between planning, evidence 
+collection, and reasoning.
+SEA w/o Evidence-Seeking Agents. To evaluate the importance of 
+targeted evidence acquisition, we remove the evidence-seeking agents 
+and retain only the planner and reasoning agent. Under this setting, the 
+system can no longer extract evidence from diﬀerent sources through 
+specialized agents. Performance again declines across all datasets, reach-
+ing 72.19% on FinMR, 62.30% on FAMMA, and 78.22% on MMMU-
+Finance. Although this variant remains stronger than the settings with-
+out planner vision input or agent communication, it is still consis-
+tently worse than the full SEA system, showing that dedicated evidence-
+seeking agents contribute meaningfully to accurate ﬁnancial multimodal 
+reasoning.
+Overall, the ablation results conﬁrm that all three components are 
+beneﬁcial, while their contributions are not equally strong. Iterative 
+agent communication produces the largest performance gain, suggesting 
+that coordination among agents is central to SEA. Direct planner access 
+to visual input is also important, particularly for tasks requiring precise 
+visual grounding. Specialized evidence-seeking agents further improve 
+performance by supporting targeted information acquisition from het-
+erogeneous sources. The full SEA system, therefore, achieves the best 
+results on FinMR, FAMMA, and MMMU-Finance, demonstrating the ef-
+fectiveness of the proposed multi-agent reasoning framework.
+5.3.  Utility analysis of dynamic sub-task generation
+We compare dynamic sub-task generation with a static decomposi-
+tion strategy on the FinMR dataset, where all sub-tasks are predeﬁned 
+at the beginning and remain ﬁxed throughout the reasoning process. 
+As illustrated in Fig. 3, dynamic sub-task generation consistently out-
+performs static decomposition across all base models. In particular, the 
+performance gains are substantial for Gemini-2.5-Flash (+9.43%) and 
+noticeable for GPT-4o (+3.93%), indicating that the beneﬁt of dynamic 
+planning is robust across models of varying capabilities.
+The performance improvement stems from the adaptive nature of dy-
+namic planning. In static decomposition, the reasoning trajectory is de-
+termined without access to intermediate evidence, making it vulnerable 
+to early-stage planning errors that cannot be corrected later. This lim-
+itation is especially pronounced in FinMR, where relevant information 
+is often fragmented across textual context, visual inputs, and domain-
+speciﬁc knowledge, requiring ﬂexible and iterative reasoning. In con-
+trast, dynamic sub-task generation enables the planner to iteratively up-
+date subsequent sub-tasks conditioned on the evolving evidence state. 
+This allows the system to reﬁne reasoning objectives based on newly 
+acquired evidence, correct earlier misinterpretations, and focus on the 
+most relevant information at each step. As reﬂected in Fig. 3, this adap-
+tive process leads to consistent and sometimes large performance im-
+provements across all evaluated models.
+5.4.  Utility analysis of evidence acquisition
+To evaluate the quality of evidence acquired by diﬀerent agents, we 
+conduct a ﬁne-grained analysis on the FinMR, FAMMA, and MMMU-
+Finance benchmarks.
+Case-based Analysis. For each dataset, we randomly sample 100 inter-
+mediate queries generated during the reasoning process and assess the 
+correctness of the corresponding agent responses. We adopt diﬀerent 
+evaluation strategies tailored to each modality. For the image agent, cor-
+rectness is assessed via human evaluation due to the complexity of visual 
+interpretation. For the context agent, we use GPT-5 to judge whether the 
+generated answers are correct given the query and context, following 
+prior work on LLM-based evaluation  [46,47]. For the knowledge agent, 
+we compare its responses with ground-truth explanations provided in 
+the datasets, and employ an LLM to determine correctness.
+Information Fusion 136 (2026) 104550 
+9 
+
+
+===== PAGE 10 =====
+
+S. Deng et al.
+Fig. 3. Static vs. dynamic task decomposition on the FinMR benchmark. Dy-
+namic sub-task generation consistently outperforms static planning across all 
+models, highlighting the eﬀectiveness of iterative, evidence-conditioned task 
+reﬁnement.
+Fig. 4. Evidence quality of diﬀerent agents on FinMR, FAMMA, and MMMU-
+Finance. Context and knowledge agents achieve consistently high accuracy, 
+while the image agent shows relatively lower performance due to the challenges 
+of ﬁne-grained visual understanding.
+Fig. 4 indicates that all three agents produce high-quality evidence 
+overall, while exhibiting distinct characteristics across modalities. The 
+context agent achieves consistently strong performance across datasets 
+(e.g., 95% on FinMR), indicating its reliability in extracting and reason-
+ing over textual context. The knowledge agent also performs robustly 
+(up to 93% on MMMU-Finance), demonstrating its eﬀectiveness in re-
+trieving and applying domain-speciﬁc ﬁnancial knowledge. In contrast, 
+the image agent shows comparatively lower accuracy (e.g., 63% on 
+FAMMA), reﬂecting the inherent diﬃculty  of ﬁne-grained visual percep-
+tion in ﬁnancial charts and tables. Nevertheless, its performance remains 
+reasonably strong (75% on FinMR), suggesting that it still provides use-
+ful complementary evidence, particularly when visual information is es-
+sential.
+The diﬀerences across agents highlight an important insight: ev-
+idence quality is modality-dependent, and errors in multimodal rea-
+soning often originate from weaker perception modules. This obser-
+vation further justiﬁes the design of SEA, where multiple specialized 
+agents collaboratively contribute evidence, allowing stronger modali-
+ties (e.g., the context and knowledge agents) to compensate for weaker 
+ones (e.g., the image agent). Overall, these results demonstrate that SEA 
+can reliably acquire high-quality intermediate evidence across modali-
+ties, which serves as a critical foundation for improving downstream 
+reasoning performance.
+Evidence Perturbation Analysis. To further examine how intermediate 
+evidence quality aﬀects ﬁnal reasoning outcomes, we conduct an evi-
+dence perturbation analysis using Claude-4-5-Sonnet as the backbone 
+model. For each benchmark, we independently drop knowledge evi-
+dence, image evidence, and textual-context evidence at ratios of 0%, 
+25%, 50%, 75%, and 100%, and then evaluate the resulting ﬁnal rea-
+soning accuracy. This controlled setting allows us to quantify how the 
+completeness of diﬀerent evidence types aﬀects the ﬁnal answer. To 
+provide a more statistically reliable assessment, we further report 95% 
+Wilson conﬁdence intervals for each accuracy value, which are visual-
+ized as error bars in Fig. 5.
+As shown in Fig. 5, accuracy generally decreases as the evidence drop 
+ratio increases across all three benchmarks, indicating that intermedi-
+ate evidence directly supports the ﬁnal reasoning process. On FinMR, 
+the accuracy drops from 78.49% to 74.23%, 73.86%, and 73.24% when 
+knowledge, textual-context, and image evidence are fully removed, re-
+spectively. The largest degradation comes from removing image evi-
+dence, suggesting that visual grounding is particularly important for 
+FinMR. On FAMMA, the performance decreases from 64.50% to 63.25%, 
+63.08%, and 63.40% under full removal of knowledge, image, and 
+textual-context evidence, respectively. Although the absolute drops are 
+smaller, the consistent downward trend shows that all three evidence 
+types contribute to the ﬁnal prediction. On MMMU-Finance, accuracy 
+decreases from 82.70% to 79.58%, 79.33%, and 79.75% when knowl-
+edge, image, and textual-context evidence are fully removed, respec-
+tively, again showing that both multimodal evidence and ﬁnancial 
+knowledge are important for reliable reasoning.
+Overall, these perturbation results, together with the reported conﬁ-
+dence intervals, provide direct empirical evidence that SEA’s eﬀective-
+ness is closely tied to the completeness of intermediate evidence. The 
+performance degradation under increasing drop ratios conﬁrms the util-
+ity and quality of the intermediate evidence: if the acquired evidence 
+were mostly noisy, redundant, or weakly related to the reasoning task, 
+removing a larger portion of it would not lead to a consistent decline in 
+performance. Instead, the observed degradation suggests that SEA col-
+lects evidence that contributes positively to reasoning by constraining 
+candidate answers, and supporting intermediate decisions. Last but not 
+least, since only one evidence type is removed at a time, the remaining 
+evidence sources can still partially compensate for the missing modality, 
+highlighting the complementary nature of SEA’s multi-agent evidence 
+acquisition mechanism.
+5.5.  Utility analysis of query-based agent communication
+To evaluate the eﬀectiveness of diﬀerent collaboration mechanisms, 
+we compare four representative paradigms: 1) pipeline-based collab-
+oration, where agents operate sequentially without interaction; 2) 
+controller-based coordination, where a central planner assigns subtasks 
+to diﬀerent modules without explicit query–response communication; 
+3) debate-based collaboration, where agents engage in multi-round ad-
+versarial discussions; and 4) our query-driven interactive collaboration, 
+which enables structured query–response communication between the 
+planner and evidence-seeking agents. For a fair comparison, all com-
+munication baselines are implemented using the same backbone model, 
+the same input context. The pipeline-based baseline follows a sequen-
+tial evidence-retrieval-and-reasoning process, similar to role-aware ﬁ-
+nancial agents  [18]. The controller-based baseline follows the central-
+ized coordination paradigm of AutoGen-style systems  [19], where a 
+controller assigns subtasks to specialized agents but does not use ex-
+plicit query–response evidence acquisition. The debate-based baseline 
+follows multi-agent debate protocols  [20], where multiple agents inde-
+pendently generate answers and exchange critiques before producing a 
+ﬁnal decision. In contrast, SEA uses planner-generated, step-conditioned 
+queries to explicitly acquire missing evidence from the most relevant 
+agent at each reasoning step.
+As shown in Table 7, query-driven interaction consistently outper-
+forms all other collaboration paradigms across all benchmarks. On 
+FinMR, our method achieves 78.49% accuracy, signiﬁcantly surpass-
+ing pipeline-based (+8.18%), controller-based (+11.05%), and debate-
+based (+6.16%) collaboration. Similar improvements are observed on 
+Information Fusion 136 (2026) 104550 
+10 
+
+
+===== PAGE 11 =====
+
+S. Deng et al.
+Table 7 
+Comparison with representative multi-agent communication paradigms. All 
+methods are implemented using the same backbone model and input setting 
+for fair comparison. The results show that the proposed query-based communi-
+cation paradigm consistently outperforms pipeline-based, controller-based, and 
+debate-based alternatives across all three benchmarks.
+ Communication Method  FinMR  FAMMA  MMMU-Finance
+ Pipeline-based: Role-aware Agent  [18]  70.31  60.33  67.66
+ Controller-based: AutoGen-style  [19]  67.44  56.78  65.59
+ Debate-based: Multi-agent Debate  [20]  72.33  57.32  70.69
+ Query-based: SEA (ours)  78.49  64.50  82.70
+FAMMA and MMMU-Finance, where query-driven interaction yields the 
+best performance, with particularly notable gains on MMMU-Finance 
+(+17.11% over controller-based and +15.04% over pipeline-based).
+The results reveal several important insights. First, purely sequen-
+tial collaboration is insuﬃcient  for complex multimodal ﬁnancial rea-
+soning. Pipeline-based methods lack the ability to dynamically acquire 
+missing information, leading to incomplete or incorrect intermediate ev-
+idence. This limitation is especially pronounced in tasks requiring cross-
+modal integration and domain knowledge. Second, controller-based co-
+ordination, despite introducing task routing, remains limited in its abil-
+ity to support evidence-grounded reasoning. Although the planner can 
+decide which module to invoke, it delegates entire subtasks rather than 
+explicitly identifying and retrieving missing information. As a result, 
+the reasoning process remains implicit, and the system may fail to ob-
+tain the precise evidence required for accurate decision-making. Third, 
+while debate-based collaboration introduces stronger interaction, un-
+structured or adversarial communication does not necessarily improve 
+reasoning performance. The relatively lower performance on FAMMA 
+suggests that multi-round discussions may introduce redundancy or dis-
+tract from the core task, without eﬀectively addressing missing evi-
+dence. Moreover, debate-based methods incur higher communication 
+overhead without guaranteeing more accurate information acquisition.
+In contrast, our query-driven framework achieves the best perfor-
+mance by enabling targeted and eﬃcient  evidence acquisition. At each 
+step, the planner explicitly identiﬁes missing information and formu-
+lates task-speciﬁc queries to retrieve evidence from the most relevant 
+agent. This structured communication paradigm avoids both the rigid-
+ity of pipeline-based execution and the ineﬃciency  of open-ended de-
+bate, while overcoming the implicit reasoning limitations of controller-
+based coordination. As a result, it leads to more accurate intermediate 
+evidence and, consequently, more reliable ﬁnal predictions. These re-
+sults demonstrate that not all forms of interaction are equally eﬀective. 
+Instead of no interaction (pipeline), implicit task delegation (controller-
+based), or excessive interaction (debate), minimal yet targeted query-
+based communication provides the most suitable balance between eﬃ-
+ciency and reasoning accuracy for multimodal ﬁnancial tasks.
+5.6.  Error analysis
+Although SEA achieves strong performance on FinMR and MMMU-
+Finance, we observe relatively lower accuracy on the FAMMA bench-
+mark. To examine the limitations of our system on the bench-
+mark, FAMMA, we conduct a detailed error analysis. Following prior 
+works  [48–50], we randomly sampled 100 error cases from the FAMMA 
+dataset. Fig. 6 demonstrates the error distribution intuitively. The errors 
+were categorized as follows:
+Cross-Image Reasoning Errors (46%): The largest portion of errors 
+occurs in one question with multiple charts or tables. These questions 
+require the model to extract numerical information from several visual 
+sources and aggregate them correctly. In many cases, the system fails 
+to accurately combine information across diﬀerent charts, leading to 
+incorrect intermediate values and ﬁnal answers.
+Text-Image Alignment Errors (23%): Another common error arises 
+when questions contain long textual contexts accompanied by images. 
+In such cases, the model sometimes struggles to properly align textual 
+descriptions with relevant visual elements. As a result, important in-
+formation from either the text or the image may be overlooked during 
+reasoning.
+Scenario-Speciﬁc Knowledge Errors (10%): We also observe errors 
+related to ﬁnancial knowledge application. Although the system can re-
+trieve general ﬁnancial formulas or concepts, some questions require 
+adapting these formulas to speciﬁc ﬁnancial scenarios. In these cases, 
+the model occasionally applies standard formulas without correctly ac-
+counting for contextual assumptions, leading to reasoning mistakes.
+Others (21%): The remaining errors include numerical calculation 
+mistakes and occasional reasoning inconsistencies.
+Beyond the above empirical categories, these errors also reveal sev-
+eral component-level limitations of SEA. First, the framework depends 
+on the quality of planner-generated subtasks. When a question requires 
+integrating multiple charts, tables, or textual constraints, an incom-
+plete subtask decomposition may cause the system to overlook necessary 
+evidence. Second, although evidence-seeking agents improve modular-
+ity, they may still return incomplete, or partially misaligned evidence, 
+especially when long textual contexts must be matched with speciﬁc 
+Fig. 5. Evidence perturbation analysis under diﬀerent evidence drop ratios on three benchmarks. (a) FinMR, (b) FAMMA, and (c) MMMU-Finance. For each bench-
+mark, we progressively drop knowledge, image, and context evidence from 0% to 100% and report the corresponding reasoning accuracy. Error bars indicate 95% 
+Wilson conﬁdence intervals.
+Information Fusion 136 (2026) 104550 
+11 
+
+
+===== PAGE 12 =====
+
+S. Deng et al.
+Fig. 6. Error distribution in FAMMA.
+visual elements. Third, the current framework does not explicitly re-
+solve conﬂicts among evidence returned by diﬀerent agents. As a result, 
+contradictory or insuﬃcient  evidence may propagate to the reasoning 
+agent and lead to incorrect intermediate reasoning. Finally, although the 
+Knowledge Agent can retrieve general ﬁnancial concepts and formulas, 
+some questions require adapting these principles to scenario-speciﬁc as-
+sumptions, which remains challenging. These limitations suggest that 
+future work should incorporate planner veriﬁcation, cross-source evi-
+dence consistency checking, and more robust mechanisms for aggregat-
+ing evidence across multiple visual and textual sources.
+6.  Conclusion
+In this work, we present SEA, a multi-agent framework for mul-
+timodal ﬁnancial reasoning that explicitly models the interaction be-
+tween task decomposition, evidence acquisition, and reasoning. By in-
+troducing a planner-guided, query-based communication protocol, SEA 
+enables dynamic retrieval of step-conditioned evidence from heteroge-
+neous sources, including visual, textual, and knowledge-based inputs. 
+The key insight of SEA is that reasoning errors in multimodal ﬁnancial 
+tasks often stem from insuﬃcient  or incorrect intermediate evidence. 
+By maintaining an explicit evidence state and grounding each reason-
+ing step in retrieved information, SEA eﬀectively improves interpretabil-
+ity. Empirical results demonstrate that our approach achieves consistent 
+gains across multiple benchmarks, particularly in scenarios requiring 
+cross-modal integration and domain-speciﬁc knowledge. Overall, SEA 
+eﬀectively integrates perception, knowledge, and reasoning in complex 
+multimodal settings and oﬀers a promising direction toward more reli-
+able and interpretable ﬁnancial reasoning systems.
+7.  Limitations
+While SEA demonstrates strong performance improvements, several 
+limitations remain. First, the framework relies on multiple large model-
+based agents, which introduces additional computational overhead com-
+pared to single-model approaches. Although the query-based communi-
+cation protocol is simple, the iterative interaction among agents may 
+increase latency in real-world applications. Second, the eﬀectiveness of 
+SEA depends on the quality of the evidence-seeking agents. Errors in vi-
+sual perception, information extraction, or knowledge retrieval can still 
+propagate through the system, potentially aﬀecting downstream reason-
+ing. Finally, our experiments focus on ﬁnancial multimodal benchmarks, 
+and the generalization of SEA to other domains, such as scientiﬁc or 
+medical reasoning, remains to be further explored.
+CRediT authorship contribution statement
+Shuangyan Deng: Writing – original draft, Validation, Software, 
+Methodology, Conceptualization; Zihao Huang: Validation, Investiga-
+tion, Data curation; Kelvin Du: Writing – review & editing, Investiga-
+tion; Rui Mao: Writing – review & editing, Visualization; Jiamou Liu:
+Writing – review & editing, Supervision; Ciprian Doru Giurc ˘aneanu:
+Writing – review & editing, Supervision, Project administration; Erik 
+Cambria: Writing – review & editing, Supervision, Resources.
+Declaration of competing interest
+The authors declare that they have no known competing ﬁnancial 
+interests or personal relationships that could have appeared to inﬂuence 
+the work reported in this paper. 
+Acknowledgments
+Rui Mao is supported by the Ministry of Education, Singapore un-
+der its MOE Academic Research Fund Tier 2 (STEM RIE2025 Award 
+MOE-T2EP20123-0005) and by the RIE2025 Industry Alignment Fund - 
+Industry Collaboration Projects (IAF-ICP) (Award I2301E0026), admin-
+istered by A*STAR, as well as supported by Alibaba Group and NTU 
+Singapore. 
+Data availability
+Data will be made available on request.
+Appendix A.  Summary of notations
+The main notations of this work can be viewed in Table A.8.
+Table A.8 
+Summary of the main notations used in the SEA framework.
+ Notation  Description
+𝑋  A multimodal ﬁnancial reasoning instance.
+𝐶  Textual context of the question.
+𝐼 = {𝑖1, … , 𝑖𝑆 }  Set of visual inputs, such as charts, tables, or ﬁgures.
+𝑄  Financial reasoning question.
+𝑂 = {𝑜1, … , 𝑜𝑀 }  Set of candidate answer options.
+𝑌 ∗  Ground-truth answer.
+̂𝑌  Predicted answer.
+𝐸𝑛  Evidence state after reasoning step 𝑛.
+𝑒𝑛  Evidence retrieved at step 𝑛.
+𝑒𝑛,𝓁  Evidence returned for the 𝓁-th query at step 𝑛.
+𝑅𝑛  Reasoning trajectory after step 𝑛.
+𝑟𝑛  Intermediate reasoning output at step 𝑛.
+𝑡𝑛  Sub-task generated by the planner at step 𝑛.
+𝑞𝑛 = {𝑞𝑛,1, … , 𝑞𝑛,𝐿𝑛
+}  Set of evidence-seeking queries at step 𝑛.
+𝑠𝑛  Termination ﬂag indicating whether to continue or stop.
+𝑃  Planner agent.
+𝐼  Image evidence-seeking agent.
+𝐶  Context evidence-seeking agent.
+𝐾  Knowledge evidence-seeking agent.
+𝑅  Reasoning agent.
+  External ﬁnancial knowledge base.
+𝜌(⋅)  Routing function that assigns each query to an evidence-
+ seeking agent.
+𝑁max  Maximum number of reasoning/planning steps.
+Appendix B.  Prompt templates for SEA
+To improve reproducibility, we provide the prompt templates used 
+by the agents in SEA. Each agent is instantiated with the same backbone 
+MLLM within an experiment, but is assigned a role-speciﬁc instruction. 
+The planner agent generates step-conditioned subtasks and evidence-
+seeking queries; the evidence-seeking agents return modality-speciﬁc 
+evidence; and the reasoning agent performs evidence-grounded infer-
+ence based on the accumulated evidence state.
+Information Fusion 136 (2026) 104550 
+12 
+
+
+===== PAGE 13 =====
+
+S. Deng et al.
+B.1.  Planner agent prompt
+Information Fusion 136 (2026) 104550 
+13 
+
+
+===== PAGE 14 =====
+
+S. Deng et al.
+B.2.  Evidence-seeking agent prompts
+Information Fusion 136 (2026) 104550 
+14 
+
+
+===== PAGE 15 =====
+
+S. Deng et al.
+ Information Fusion 136 (2026) 104550 
+15 
+
+
+===== PAGE 16 =====
+
+S. Deng et al.
+B.3.  Reasoning agent prompt
+Information Fusion 136 (2026) 104550 
+16 
+
+
+===== PAGE 17 =====
+
+S. Deng et al.
+References
+[1] Open AI, GPT-4o system card, 2024,. arXiv:2410.21276.
+[2] G. DeepMind, Gemini 2.5 ﬂash model card, 2025, https://deepmind.google/models/
+model-cards/.
+[3] Anthro pic, Claude Sonnet 4-5, 2025, https://www.anthropic.com/news/claude-4.
+[4] K. Du, Y. Zhao, R. Mao, F. Xing, E. Cambria, Natural language processing in ﬁnance: 
+a survey, Inform. Fus. 115 (2025) 102755. https://doi.org/10.1016/j.inﬀus.2024.
+102755
+[5] H. Liu, C. Li, Q. Wu, Y.J. Lee, Visual instruction tuning, Adv. Neural Inf. Process. 
+Syst. 36 (2023) 34892–34916. https://doi.org/10.5555/3666122.3667638
+[6] T. Yue, R. Mao, X. Shi, E. Cambria, InterARM: interpretable aﬀective reasoning 
+model for multimodal sarcasm detection, IEEE Trans. Aﬀective Comput. (2026). 
+https://doi.org/10.1109/TAFFC.2026.3653505
+[7] S. Xue, X. Li, F. Zhou, Q. Dai, Z. Chu, H. Mei, FAMMA: a benchmark for ﬁnancial 
+domain multilingual multimodal question answering, arXiv:2410.04526 (2024). .
+[8] J. Luo, Z. Kou, L. Yang, X. Luo, J. Huang, Z. Xiao, J. Peng, C. Liu, J. Ji, X. Liu, 
+S. Han, M. Zhang, Y. Guo, FinMME: benchmark dataset for ﬁnancial multi-modal 
+reasoning evaluation, in: Proceedings of the 63rd Annual Meeting of the Association 
+for Computational Linguistics, 2025, pp. 11640–11671. https://doi.org/10.18653/
+v1/2025.acl-long.1426
+[9] S. Deng, H. Peng, J. Xu, R. Mao, C.D. Giurcaneanu, J. Liu, FinMR: a knowledge-
+intensive multimodal benchmark for advanced ﬁnancial reasoning, in: Proceedings 
+of the 6th ACM International Conference on AI in Finance, 2025, pp. 168–176. https:
+//doi.org/10.1145/3768292.3770365
+[10] Z. Chen, W. Chen, C. Smiley, S. Shah, I. Borova, D. Langdon, R. Moussa, M. Beane, 
+T.-H. Huang, B. Routledge, W.Y. Wang, FinQA: a dataset of numerical reasoning 
+over ﬁnancial data, Proceedings EMNLP 2021 (2021). https://doi.org/10.18653/
+v1/2021.emnlp-main.300
+[11] Y. Sui, M. Zhou, M. Zhou, S. Han, D. Zhang, Table meets LLM: can large language 
+models understand structured table data? A benchmark and empirical study, in: 
+Proceedings of the 17th ACM International Conference on Web Search and Data 
+Mining, 2024, pp. 645–654. https://doi.org/10.1145/3616855.3635752
+[12] Z. Tang, J. Liu, Z. Yang, R. Li, Z. Rong, H. He, Z. Hao, X. Hu, K. Ji, Z. Ma, et al., Fin-
+MMR: make ﬁnancial numerical reasoning more multimodal, comprehensive, and 
+challenging, in: Proceedings of the IEEE/CVF International Conference on Computer 
+Vision, 2025, pp. 3245–3257. arXiv:2508.04625.
+[13] E. Cambria, R. Mao, M. Chen, Z. Wang, S.-B. Ho, Seven pillars for the future of 
+artiﬁcial intelligence, IEEE Intell. Syst. 38 (6) (2023) 62–69. https://doi.org/10.
+1109/MIS.2023.3329745
+[14] R.C. Atkinson, R.M. Shiﬀrin, Human memory: a proposed system and its control 
+processes, in: Psychology of Learning and Motivation,  2, Elsevier, 1968, pp. 89–195. 
+https://doi.org/https://doi.org/10.1016/S0079-7421(08)60422-3
+[15] R. Mao, K. He, C.B. Ong, Q. Liu, E. Cambria, MetaPro 2.0: computational metaphor 
+processing on the eﬀectiveness of anomalous language modeling, in: Findings of 
+the Association for Computational Linguistics: aCL, Bangkok, Thailand, , 2024, pp. 
+9891–9908. https://doi.org/10.18653/v1/2024.ﬁndings-acl.590
+[16] M. Corbetta, G.L. Shulman, Control of goal-directed and stimulus-driven attention 
+in the brain, Nat. Rev. Neurosci. 3 (3) (2002) 201–215. https://doi.org/https://doi.
+org/10.1038/nrn755
+[17] X. Yue, Y. Ni, K. Zhang, T. Zheng, R. Liu, G. Zhang, S. Stevens, D. Jiang, W. Ren, Y. 
+Sun, C. Wei, B. Yu, R. Yuan, R. Sun, M. Yin, B. Zheng, Z. Yang, Y. Liu, W. Huang, H. 
+Sun, Y. Su, W. Chen, MMMU: a massive multi-discipline multimodal understanding 
+and reasoning benchmark for expert AGI, in: Proceedings of the IEEE/CVF Confer-
+ence on Computer Vision and Pattern Recognition (CVPR), 2024, pp. 9556–9567. 
+arXiv:2311.16502
+[18] A. Zhu, Y. Du, A role-aware multi-agent framework for ﬁnancial education QA, in: 
+Proceedings of the 6th ACM International Conference on AI in Finance, ICAIF ’25, 
+Association for Computing Machinery, New York, NY, USA , 2025, p. 483–491. https:
+//doi.org/10.1145/3768292.3770345
+[19] Q. Wu, G. Bansal, J. Zhang, Y. Wu, B. Li, E. Zhu, L. Jiang, X. Zhang, S. Zhang, J. 
+Liu, A.H. Awadallah, R.W. White, D. Burger, C. Wang, AutoGen: enabling next-gen 
+LLM applications via multi-agent conversations, in: First Conference on Language 
+Modeling, 2024, pp. 1–46. https://openreview.net/forum?id=BAakY1hNKS.
+[20] T. Liang, Z. He, W. Jiao, X. Wang, Y. Wang, R. Wang, Y. Yang, S. Shi, 
+Z. Tu, Encouraging divergent thinking in large language models through 
+multi-agent debate, in: Proceedings of the 2024 Conference on Empiri-
+cal Methods in Natural Language Processing, 2024, pp. 17889–17904. 
+https://doi.org/10.18653/v1/2024.emnlp-main.992
+[21] S. Wu, O. Irsoy, S. Lu, V. Dabravolski, M. Dredze, S. Gehrmann, P. Kambadur, D. 
+Rosenberg, G. Mann, BloombergGPT: a large language model for ﬁnance, 2023, 
+arXiv:2303.17564
+[22] K. Du, R. Mao, F. Xing, E. Cambria, Explainable stock price movement prediction 
+using contrastive learning, in: Proceedings of the 33rd ACM International Confer-
+ence on Information and Knowledge Management (CIKM), Idaho, USA, 2024, pp. 
+529–537. https://doi.org/10.1145/3627673.3679544
+[23] E. Cambria, R. Mao, X. Zhang, L. Xiao, T. Shen, A. Anand, SenticNet 9: gener-
+ative commonsense for emotion AI via conceptual primitive discovery and time 
+shift mechanism, IEEE Trans. Comput. Soc. Syst. 13 (3) (2026) 4086–4095. https:
+//doi.org/10.1109/TCSS.2026.3677113
+[24] F. Zhu, W. Lei, Y. Huang, C. Wang, S. Zhang, J. Lv, F. Feng, T.-S. Chua, TAT-QA: a 
+question answering benchmark on a hybrid of tabular and textual content in ﬁnance, 
+in: Proceedings of the 59th Annual Meeting of the Association for Computational 
+Linguistics and the 11th International Joint Conference on Natural Language Pro-
+cessing (Volume 1: long Papers), Association for Computational Linguistics, Online, 
+2021, pp. 3277–3287. https://doi.org/10.18653/v1/2021.acl-long.254
+[25] K. Du, Y. Zhao, R. Mao, F. Xing, E. Cambria, A retrieval-augmented multi-agent 
+system for ﬁnancial sentiment analysis, IEEE Intell. Syst. 40 (2025) 15–22. https:
+//doi.org/10.1109/MIS.2025.3544912
+[26] L. Xiao, R. Mao, S. Zhao, Q. Lin, Y. Jia, L. He, E. Cambria, Exploring cognitive 
+and aesthetic causality for multimodal aspect-based sentiment analysis, IEEE Trans. 
+Aﬀective Comput. (2025). https://doi.org/10.1109/TAFFC.2025.3565506
+[27] Y. Xiao, E. Sun, D. Luo, W. Wang, TradingAgents: multi-agents LLM ﬁnancial trading 
+framework, (2024). arXiv:2412.20138.
+[28] H. Ding, Y. Li, J. Wang, H. Chen, Large language model agent in ﬁnancial trading: 
+a survey, (2024), arXiv:2408.06361.
+[29] A. Graves, Adaptive computation time for recurrent neural networks, (2016). 
+arXiv:1603.08983.
+[30] R. Schwartz, G. Stanovsky, S. Swayamdipta, J. Dodge, N.A. Smith, The Right Tool 
+for the Job: matching model and instance complexities, in: D. Jurafsky, J. Chai, 
+N. Schluter, J. Tetreault (Eds.), Proceedings of the 58th Annual Meeting of the As-
+sociation for Computational Linguistics, Association for Computational Linguistics, 
+Online, 2020, pp. 6640–6651. https://doi.org/10.18653/v1/2020.acl-main.593
+[31] J. Janisch, T. Pevný, V. Lisý, Classiﬁcation with costly features using deep rein-
+forcement learning, in: Proceedings of the AAAI Conference on Artiﬁcial Intelli-
+gence,  33, 2019, pp. 3959–3966. https://doi.org/https://doi.org/10.1609/aaai.
+v33i01.33013959
+[32] C.-H. Chang, L. Rampasek, A. Goldenberg, Dropout feature ranking for deep learning 
+models, (2017) arXiv:1712.08645.
+[33] V. Mnih, N. Heess, A. Graves, K. Kavukcuoglu, Recurrent models of visual attention, 
+Adv. Neural Inf. Process. Syst. 27 (2014). https://proceedings.neurips.cc/paper/
+2014/hash/09c6c3783b4a70054da74f2538ed47c6-Abstract.html.
+[34] J. Ba, V. Mnih, K. Kavukcuoglu, Multiple object recognition with visual attention, 
+2015, arXiv:1412.7755.
+[35] M. Fayyaz, S.A. Koohpayegani, F.R. Jafari, S. Sengupta, H.R.V. Joze, E. Sommerlade, 
+H. Pirsiavash, J. Gall, Adaptive token sampling for eﬃcient  vision transformers, 
+in: European Conference on Computer Vision, Springer, 2022, pp. 396–414. https:
+//doi.org/https://doi.org/10.1007/978-3-031-20083-0_24
+[36] Y. Zhou, X. Li, Q. Wang, J. Shen, Visual in-context learning for large vision-language 
+models, in: Findings of the Association for Computational Linguistics: aCL 2024, 
+2024, pp. 15890–15902. https://doi.org/10.18653/v1/2024.ﬁndings-acl.940
+[37] S. Yao, J. Zhao, D. Yu, N. Du, I. Shafran, K.R. Narasimhan, Y. Cao, React: synergizing 
+reasoning and acting in language models, in: The Eleventh International Conference 
+on Learning Representations, 2022, pp. 11640–11671. https://openreview.net/pdf?
+id=WE_vluYUL-X.
+[38] T. Schick, J. Dwivedi-Yu, R. Dessì, R. Raileanu, M. Lomeli, E. Ham-
+bro, L. Zettlemoyer, N. Cancedda, T. Scialom, Toolformer: language mod-
+els can teach themselves to use tools, Adv. Neural Inf. Process. Syst. 36 
+(2023) 68539–68551. http://papers.nips.cc/paper_ﬁles/paper/2023/hash/
+d842425e4bf79ba039352da0f658a906-Abstract-Conference.html .
+[39] H. Tran, Z. Yao, Z. Yang, J. Wang, Y. Zhang, S. Han, F. Ouyang, H. Yu, RARE: 
+retrieval-augmented reasoning enhancement for large language models, in: Proceed-
+ings of the 63rd Annual Meeting of the Association for Computational Linguistics 
+(Volume 1: long Papers), Association for Computational Linguistics, Vienna, Austria, 
+2025, pp. 18305–18330. https://doi.org/10.18653/v1/2025.acl-long.896
+[40] M.U. Akhtar, J. Liu, Z. Xie, X. Liu, S. Ahmed, B. Huang, Entity alignment based on 
+relational semantics augmentation for multilingual knowledge graphs, Knowl.-Based 
+Syst. 252 (2022) 109494. https://doi.org/10.1016/j.knosys.2022.109494
+[41] M.U. Akhtar, J. Liu, Z. Xie, X. Cui, X. Liu, B. Huang, Multilingual entity alignment 
+by abductive knowledge reasoning on multiple knowledge graphs, Eng. Appl. Artif. 
+Intell. 139 (2025) 109660. https://doi.org/https://doi.org/10.1016/j.knosys.2022.
+109494
+[42] J.S. Park, J. O’Brien, C.J. Cai, M.R. Morris, P. Liang, M.S. Bernstein, Generative 
+agents: interactive simulacra of human behavior, in: Proceedings of the 36th Annual 
+ACM Symposium on User Interface Software and Technology, 2023, pp. 1–22. https:
+//doi.org/10.1145/3586183.3606763
+[43] Y. Zhou, L. Song, J. Shen, MAM: modular multi-agent framework for multi-modal 
+medical diagnosis via role-specialized collaboration, in: Findings of the Association 
+for Computational Linguistics: aCL 2025, Association for Computational Linguis-
+tics, Vienna, Austria, 2025, pp. 25319–25333. https://doi.org/10.18653/v1/2025.
+ﬁndings-acl.1298
+[44] J. Wei, X. Wang, D. Schuurmans, M. Bosma, F. Xia, E. Chi, Q.V. Le, D. Zhou, et al., 
+Chain-of-thought prompting elicits reasoning in large language models, Adv. Neural 
+Inf. Process. Syst. 35 (2022) 24824–24837. http://papers.nips.cc/paper_ﬁles/paper/
+2022/hash/9d5609613524ecf4f15af0f7b31abca4-Abstract-Conference.html .
+[45] L.B. Kaesberg, J. Becker, J.P. Wahle, T. Ruas, B. Gipp, Voting or consensus? decision-
+making in multi-agent debate, in: Findings of the Association for Computational 
+Linguistics: aCL 2025, 2025, pp. 11640–11671. https://doi.org/10.18653/v1/2025.
+ﬁndings-acl.606
+[46] Y. Liu, D. Iter, Y. Xu, S. Wang, R. Xu, C. Zhu, G-eval: NLG evaluation using GPT-4 
+with better human alignment, in: Proceedings of the 2023 Conference on Empirical 
+Methods in Natural Language Processing, 2023, pp. 2511–2522. https://doi.org/10.
+18653/v1/2023.emnlp-main.153
+[47] T. Yue, R. Mao, X. Shi, S. Zhan, Z. Yang, D. Zhao, QAEval: mixture of evaluators for 
+question-answering task evaluation, in: Proceedings of the 63rd Annual Meeting of 
+the Association for Computational Linguistics (ACL), 2025, p. 14717–14730. https:
+//doi.org/10.18653/v1/2025.acl-long.716
+[48] D. Zhou, N. Schärli, L. Hou, J. Wei, N. Scales, X. Wang, D. Schuur-
+mans, C. Cui, O. Bousquet, Q.V. Le, E.H. Chi, Least-to-Most prompting 
+enables complex reasoning in large language models, in: The Eleventh 
+International Conference on Learning Representations, 2023, pp. 1–61. 
+https://openreview.net/forum?id=WZH7099tgfM.
+Information Fusion 136 (2026) 104550 
+17 
+
+
+===== PAGE 18 =====
+
+S. Deng et al.
+[49] J. Chen, X. Pan, D. Yu, K. Song, X. Wang, D. Yu, J. Chen, Skills-in-context: un-
+locking compositionality in large language models, in: Findings of the Associa-
+tion for Computational Linguistics: eMNLP 2024, 2024, pp. 13838–13890. https:
+//doi.org/10.18653/v1/2024.ﬁndings-emnlp.812
+[50] Z. Zhang, J. Chen, D. Yang, DARG: dynamic evaluation of large language models via 
+adaptive reasoning graph, in: The Thirty-eighth Annual Conference on Neural In-
+formation Processing Systems, 2024, pp. 1–39. https://openreview.net/forum?id=
+5IFeCNA7zR.
+Information Fusion 136 (2026) 104550 
+18 

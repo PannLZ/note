@@ -1,0 +1,1149 @@
+TITLE: Financial news sentiment meets market data: A large language model-based approach to stock price prediction
+PAGES: 20
+OUTLINE:
+- p1: Financial news sentiment meets market data: A large language model-based approach to stock price prediction
+  - p1: 1 Introduction
+    - p2: 1.1 Gaps
+    - p3: 1.2 Research contributions
+  - p3: 2 Related work
+  - p4: 3 Task
+  - p5: 4 Methodology
+    - p5: 4.1 Data ingestion
+    - p5: 4.2 Feature engineering
+      - p6: 4.2.1 Polarity extraction
+      - p6: 4.2.2 Economic indicator extraction
+      - p7: 4.2.3 Data aggregation
+    - p8: 4.3 Stock forecasting
+      - p8: 4.3.1 Training
+  - p8: 5 Experimental setup
+    - p9: 5.1 Stock forecasting models: implementation details
+    - p11: 5.2 Evaluation measure
+    - p12: 5.3 Hardware and software stack
+    - p12: 5.4 Information for reproducibility
+  - p13: 6 Results and discussion
+    - p16: 6.1 XAI
+  - p18: 7 Conclusion and future work
+  - p19: CRediT authorship contribution statement
+  - p19: Declaration of competing interest
+  - p19: Acknowledgements
+  - p19: Data availability
+  - p19: References
+
+
+===== PAGE 1 =====
+Information Sciences 754 (2026) 123711
+Contents lists available at ScienceDirect
+Information Sciences
+journal homepage: www.elsevier.com/locate/ins
+Financial news sentiment meets market data: A large language
+model-based approach to stock price prediction
+iD iD iD
+Giovanni Officioso c , Giancarlo Sperlì a, b,∗ , Andrea Vignali a
+a Department of Electrical Engineering and Information Technology (DIETI), University of Naples “Federico II”, Via Claudio 21, 80125,
+Naples, Italy
+b CINI-ITEM National Lab, Complesso Universitario Monte S. Angelo, 80126 Naples, Italy
+c University of Milan-Bicocca, Piazza dell’Ateneo nuovo 1, 80126, Milan, Italy
+h i g h l i g h t s
+• We propose a framework integrating LLM sentiment analysis into stock forecasting.
+• We compared 3 LLM sentiment extractors and 3 stock forecasting models.
+• In our analysis LSTM achieves the best trade-off between accuracy and efficiency.
+• Vicuna achieves the best sentiment extraction despite higher hallucination rates.
+a r t i c l e i n f o a b s t r a c t
+Keywords: In this paper, we present a stock market forecasting framework that integrates sentiment analysis
+Stock market forecasting of news headlines associated with individual stocks performed by Large Language Models (LLMs)
+Large language models with economic indicators. Specifically, we infer multi-class labels and continuous polarity scores
+Sentiment analysis by using LLMs (i.e., Llama, Vicuna, and Mistral) under zero-shot settings from news content. These
+Deep learning sentiment signals are combined with historical price data and economic indicators and fed as input
+Financial news analysis
+to different deep learning models (i.e., Long Short-Term Memory (LSTM) networks, Generative
+Adversarial Networks (GANs), and Transformers) for predicting stock closing prices. We evaluate
+the proposed framework on a dataset comprising historical financial time series and 8652 news
+articles related to 47 meme stocks listed on major stock exchanges, covering the period from
+January 2019 to December 2021. While Vicuna delivers the quickest sentiment processing (around
+14% faster than Llama), it achieves the greatest hallucination rate (9.6%). Among the forecasting
+models, Transformer architectures offer improved Mean Absolute Percentage Error (MAPE) scores
+(9.995–12.049%) while LSTM requires minimal computational resources for training (up to 6%).
+1 . Introduction
+The stock market serves as a relevant indicator of economic performance, representing national economies with its dynamics and
+returns, making stock forecasting one of the most challenging tasks [1]. Traditional forecasting approaches have relied on the analysis
+of technical indicators, macroeconomic factors, and company-specific data [2]. With the growing availability of heterogeneous data
+sources, the focus has shifted toward integrating numerical time series with unstructured textual information [3]. However, effectively
+∗ Corresponding author at: Department of Electrical Engineering and Information Technology (DIETI), University of Naples “Federico II”, Via Claudio 21, 80125,
+Naples, Italy.
+Email addresses: g.officioso@campus.unimib.it (G. Officioso), giancarlo.sperli@unina.it (G. Sperlì), andrea.vignali@unina.it (A. Vignali).
+https://doi.org/10.1016/j.ins.2026.123711
+Received 2 October 2025; Received in revised form 30 May 2026; Accepted 30 May 2026
+Available online 4 June 2026
+0020-0255/© 2026 The Author(s). Published by Elsevier Inc. This is an open access article under the CC BY-NC-ND license
+(h ttp://creativecommons.org/licenses/by-nc-nd/4.0/ ).
+
+===== PAGE 2 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+combining these modalities to capture temporal and contextual dependencies in a unified predictive framework remains a significant
+challenge, particularly in achieving robust and adaptive stock market forecasting models [4].
+In recent years, there has been increasing academic recognition of the critical role investor sentiment plays in shaping financial
+markets [5], although it is significantly influenced by several contextual factors (e.g., news events, brand strength, and loyalty).
+Sentiment analysis further contributes to sustained investor interest and can impact stock performance [6].
+While the traditional text mining methodologies have shown some effectiveness in analyzing content from online stock forums,
+they typically depend on labor-intensive preprocessing and the availability of large, labeled datasets [7]. These requirements limit
+their scalability and hinder their capacity to reflect the real-time and complex dynamics of investor sentiment. In turn, large language
+models (LLMs) such as ChatGPT1 and LLaMA,2 which leverage in-context learning, offer a more flexible and efficient alternative.
+These models can extract sentiment with greater nuance from large volumes of financial textual content, eliminating the need for
+task-specific supervision and enabling more accurate and timely sentiment-driven analysis of stock performance [7].
+Financial time series forecasting plays a crucial role in quantitative finance, providing valuable insights that drive the development
+of effective and profitable investment strategies [8]. However, stock price prediction remains a challenging task due to the nonlinear
+and nonstationary nature of financial time series, which are shaped by a multitude of dynamic factors [1]. Indeed, price fluctuations
+are the result of complex dynamics among macroeconomic policies, societal fundamentals, and investor sentiment [9], contributing
+to a highly volatile and uncertain market environment.
+1.1 . Gaps
+Stock prices are often modeled as univariate time series data, which form the foundation of most forecasting models [10]. Although
+these data are continuously recorded, they are often noisy and susceptible to anomalies due to the influence of external events [11].
+Additionally, traditional models tend to struggle with generalization, particularly when applied to unseen or out-of-distribution data.
+This is largely because one-dimensional time series data offer relatively simplistic features, primarily capturing short-term price
+fluctuations without sufficient contextual representation [12]. However, recent advances in computing resources and data processing
+have enabled deep learning models to overcome some of these limitations by learning richer, hierarchical representations from raw
+time series data, thereby enhancing robustness and predictive accuracy [11].
+Despite the progress achieved by deep learning, challenges surrounding universality and interpretability remain central concerns
+in stock market forecasting. Many existing neural network-based models exhibit limited generalizability, often performing well only
+on specific datasets or under narrow market conditions [13]. However, as economic globalization deepens, financial markets are
+no longer isolated systems: they are complex, interdependent networks involving diverse countries, sectors, and asset classes. This
+evolving landscape underscores the urgent need for models that are both broadly applicable across varying market contexts and
+capable of providing interpretable predictions. Addressing these issues is a key direction for future research in stock forecasting,
+especially as the demand grows for AI systems that not only perform well but also offer transparent and trustworthy decision-making
+processes.
+Most existing research in stock market time series forecasting has concentrated on short-term predictions, typically forecasting
+prices on single indices (e.g., [14]).
+Beyond these architectural and scope limitations, the integration of LLMs into financial forecasting itself remains hindered by four
+concrete unresolved challenges that, taken together, motivate the present study.
+First, we can take into account the limitations of domain-specific LLMs. Indeed, open-source financial LLMs (e.g., FinBERT, FinGPT,
+InvestLM) are typically smaller models, often trained primarily on formal news content, which limits their generalizability across
+diverse financial NLP tasks and unstructured textual environments. Larger proprietary models such as BloombergGPT are not publicly
+available, preventing independent assessment by the research community. This motivates the evaluation of general-purpose, publicly
+available LLMs (Llama, Mistral, Vicuna) as zero-shot sentiment extractors, which is a topic that has been underexplored.
+Another thing to be taken into account is the non-trivial problem of identifying the optimal prompt for sentiment extraction in a
+domain characterized by uncertainty, volatility, and non-linear behavior. Different LLMs may respond differently to the same prompt,
+and the literature lacks a systematic comparison under identical prompting conditions, a gap our study directly addresses by using a
+fixed prompt and varying the LLM.
+The third element to be taken into account is the scarcity of high-quality financial-textual datasets, whose building demands rare
+combined expertise in financial knowledge and textual semantics, limiting the size and diversity of evaluation corpora reported in the
+literature. Prior LLM-based sentiment-augmented forecasting works typically rely on small textual samples (≈ [1, 000]1000 headlines),
+which are insufficient for robust comparative conclusions across architectures. Our study uses [8, 652]8652 headlines, providing a
+substantially larger evaluation base.
+Lastly, the lack of identification of effective predictive features also needs to be considered. Indeed, while many works generate
+large numbers of features from historical financial data, these features alone do not always yield accurate forecasts [15]. Whether
+and how LLM-derived sentiment features meaningfully complement classical economic indicators across different deep learning
+architectures (LSTM, GAN, Transformer) is an open empirical question that no existing study addresses systematically.
+1 https://chatgpt.com.
+2 https://www.llama.com.
+2
+
+===== PAGE 3 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+The intersection of these four challenges, and their particular relevance to the underexplored domain of meme stocks [16], whose
+dynamics are dominated by social-media-driven retail behavior rather than fundamentals, provides the concrete justification for our
+research question. Specifically, prior works such as [7] evaluate only a single LLM on approximately [1, 000]1000 news samples,
+while [15] rely solely on historical price data and economic indicators without any textual signal.
+To address the identified gaps, we combined daily historical prices of 47 companies with sentiment information extracted by LLMs
+from news headlines and additional economic indicators to predict daily closing prices using deep learning models.
+1.2 . Research contributions
+In this paper, we address the challenge of improving stock price forecasting by integrating sentiment analysis of financial news
+headlines using LLMs along with complex economic indicators. Our objective is to infer nuanced sentiment signals from unstructured
+textual data through LLMs, which are then incorporated into deep learning-based predictive models to enhance forecasting effec­
+tiveness. Our approach has been focused on meme stocks that are mostly affected by user behavior on social media. The proposed
+framework has practical implications that can be applied across application domains that combine textual data and time series, such
+as event detection, e-health diagnosis, and so on.
+The main contributions of this work are the following:
+• We propose a framework integrating zero-shot LLM-driven sentiment analysis of financial news headlines with historical stock
+price data, enhancing the accuracy of closing price prediction;
+• We integrate derived economic indicators that capture short-term price momentum, trend direction, and multi-scale temporal
+signals obtained through frequency-based analysis;
+• We evaluate the performance in terms of effectiveness and efficiency of three LLMs for polarity extraction and three deep learning
+architectures within this framework to assess their forecasting capabilities on 47 prominent publicly traded companies across
+major global stock exchanges.
+The remainder of the paper is organized as follows. Section 2 reviews the related work in stock market prediction. Section 3
+describes the stock forecasting task. Section 4 outlines the proposed framework for integrating LLM-based sentiment with deep
+learning models. Section 5 details the experimental design, model configurations, and evaluation metrics. Section 6 presents and
+discusses the results of our empirical evaluation. Finally, Section 7 concludes the paper and highlights directions for future research.
+2 . Related work
+Different from general time series forecasting tasks [17], stock price prediction is influenced by the cognitive biases, emotional
+responses, and sociopolitical dynamics of chaotic human behavior. Indeed, the rising availability of unstructured textual data, par­
+ticularly financial news and social media content, has opened new alternatives for adding sentiment-driven insights into predictive
+models [18].
+Integrating Natural Language Processing (NLP) with financial forecasting has emerged as a crucial research field, encompassing
+several challenges such as the extraction of meaningful sentiment signals from financial text, the temporal alignment and aggregation
+of sentiment features with traditional financial indicators, and the development of robust predictive models capable of leveraging
+multimodal information sources [19].
+In this regard, recent advances in language models have changed the landscape of sentiment analysis, offering opportunities for
+understanding financial context without task-specific fine-tuning. However, the application of these models to financial forecasting
+implies distinct issues, including handling sparse news coverage, managing temporal relationships in sentiment data, and picking
+appropriate architectural frameworks for integrating textual and numerical elements [11].
+The approaches to stock market prediction can be characterized depending on their methodological focus and data utilization
+methodologies:
+1. technical analysis approaches, which concentrate exclusively on past price and volume data, employing mathematical indica­
+tors to detect patterns and trends;
+2. fundamental analysis techniques, which use company-specific financial measurements, earnings data, and macroeconomic
+indicators to assess intrinsic value and predict price movements;
+3. quantitative approaches, which apply statistical and machine learning techniques, spanning from conventional econometric
+models to sophisticated deep learning-based models, to capture intricate nonlinear connections in financial data;
+4. sentiment-driven techniques, which integrate textual input from news items, social media, and financial reports to bring market
+psychology and investor behavior into prediction models;
+5. hybrid techniques, which integrate several strategies to harness the complementary properties of distinct data sources and
+analytical tools.
+Recent studies have increasingly focused on relevant textual information to predict stock movement and extract further informative
+text features [20]. Indeed, analyzing the emotional orientation of the textual context helps in understanding the stock market’s
+emotional context and its dynamic fluctuations more deeply [6]. For instance, Liu et al. [21] propose FinBERT, a pre-trained language
+model based on BERT, trained on general and financial corpora using multi-task self-supervised learning across six pre-training tasks,
+3
+
+===== PAGE 4 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+achieving state-of-the-art performance. Effectively leveraging user-generated content in social communities remains a significant
+challenge for sentiment analysis, particularly due to the presence of low-quality comments that may compromise the performance of
+approaches that rely on opinion-mining [22].
+In recent years, researchers have explored fundamental analysis, sentiment analysis, and related methods, trying to enhance
+prediction effectiveness. For instance, the combination of technical indicators and text has been employed to improve predictive
+performance and provide deeper insights into market dynamics [11]. Traditional approaches, such as hard fusion, apply simple,
+almost parameter-free methods to combine data [23], whereas soft fusion leverages deep learning techniques to extract richer feature
+representations and enable deeper interaction between modalities [24]. Another framework has been made by Liu et al. [25], which
+proposes a multimodal emotion recognition framework that learns from LLMs via imitation, enabling training on unlabeled real-world
+stock market data by generating pseudo labels from textual input.
+Whilst the combination of textual and numerical features is receiving much attention, fundamental analysis remains a widely
+adopted method in finance since valuable information can be extracted from stock prices. Mining the information cloistered in price
+fluctuations still enables the prediction of the stock market’s trend [26].
+However, the dynamic and volatile nature of the financial markets poses a major challenge to modeling temporal and non-linear
+relationships, which are critical for accurate time series forecasting [27]. Indeed, temporal dynamics embody intricate, evolving
+patterns driven by exogenous market events and shifts in investor sentiment. Nonlinearities stem from intricate interdependencies
+among financial variables, where even minor fluctuations in one factor may trigger large and unpredictable effects [28]. Stock market
+prediction is further hindered by the difficulty of distinguishing signal from noise, data biases (e.g., survivorship, look-ahead bias),
+and overfitting risks that complicate model generalization. These factors limit the reliability of forecasts and the practical deployment
+of predictive systems in dynamic financial environments.
+Another main problem in the finance domain is the feature extraction process, which is often performed manually or semi-
+automatically by using appropriate rules [26]. Indeed, existing tools for analyzing investor sentiment are constrained by their reliance
+on large, high-quality labeled datasets, the creation of which is both costly and labor-intensive. A further hurdle in designing predictive
+models concerns the need for effective representation of temporal patterns in financial time series, which are non-linear, volatile,
+and dynamic [4]. Additionally, these models struggle to adapt to the changing dynamics of the market and often fail to capture
+the subtle and context-dependent sentiments embedded in unstructured financial text, which limits their overall performance and
+practical applicability. This study contributes to the hybrid techniques category by systematically integrating LLM-based sentiment
+analysis with traditional technical indicators across multiple deep learning architectures, addressing the fundamental challenge of
+multimodal financial forecasting in an era of abundant textual data.
+The main novelties of the proposed approach w.r.t. the state of the art are summarized as follows:
+• We integrate LLM-driven sentiment analysis with historical financial time-series data and economic indicators to handle the
+dynamic behavior of the market, in contrast to prior works such as [15], and [4] which use only historical data and economic
+indicators;
+• We deal with a financial time series forecasting problem while also considering the sentiment extracted by LLMs. In contrast,
+[7] only studies the correlation between LLM-driven sentiment analysis and time series;
+• We assess the performance of three different LLM models used for sentiment analysis with a dataset composed of 8652 news
+headlines, in contrast to [7] which only uses one LLM and 1000 pre-filtered samples.
+3 . Task
+Stock prediction is typically approached as a time series forecasting problem [4], in which the aim is to forecast future price
+changes using past data and other inputs.
+In our context, we focus on the time series forecasting problem (see Definition 1), in which we consider multivariate information
+(i.e., news, reports, historical data) to estimate future stock prices based on previous data and other relevant variables (i.e., sentiment
+information). This undertaking is particularly arduous due to the complicated, non-linear, and generally non-stationary structure of
+financial markets [18].
+Definition 1.
+We aim to find the stock price 𝑃 at the instant 𝑡 + ℎ, such that:
+𝑡+ℎ
+𝑃 = 𝑓 (𝑃 , 𝑋𝑒𝑐𝑜𝑛𝑜𝑚𝑖𝑐, 𝑋𝑠𝑒𝑛𝑡 ) + 𝜀 (1)
+𝑡+ℎ (𝑡∶𝑡−𝑛) 𝑡 (𝑡∶𝑡−𝑘)
+where:
+• 𝑃 = [𝑃 , 𝑃 , … , 𝑃 ] represents the historical price sequence over 𝑛 periods;
+(𝑡∶𝑡−𝑛) 𝑡 (𝑡−1) (𝑡−𝑛)
+• 𝑋𝑒𝑐𝑜𝑛𝑜𝑚𝑖𝑐 represents fundamental data available at time 𝑡, such as financial ratios, earnings metrics, and macroeconomic variables;
+𝑡
+• 𝑋𝑠𝑒𝑛𝑡 represents sentiment features derived from textual data over a window of 𝑘 periods;
+(𝑡∶𝑡−𝑘)
+• 𝑓(⋅) denotes the prediction function that models the relationship between both the past price 𝑃 and the exogenous variables 𝑿 ;
+𝑡 𝑡
+• 𝜀 ∼ N (0, 𝜎2) represents the error term, allowing for time-varying volatility.
+𝑡 𝑡
+This formulation explicitly takes into account the multimodal nature of financial prediction, incorporating different types of
+information that may operate on different time scales and exhibit varying degrees of persistence.
+4
+
+===== PAGE 5 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Fig. 1. Overview of the data flow of the proposed framework. The framework consists of three main phases: (i) data ingestion of historical stock prices and news
+headlines; (ii) feature engineering to extract and aggregate sentiment polarity and economic indicators; (iii) stock forecasting, using the engineered features to train
+a model to predict stock closing prices.
+Table 1
+Dataset characterization of the news for the 47
+meme stocks.
+Mean Std Min Max
+Stats 919.936 209.61 490 1044
+4 . Methodology
+We design a multimodal framework for financial forecasting, integrating traditional economic indicators with sentiment analysis
+scores inferred from LLMs on financial news to predict stock price returns. As shown in Fig. 1, our framework contains three main
+steps: data collection, feature engineering, and model training.
+In the data ingestion phase, we collect information from two different streams: historical financial information and daily news.
+This information is fed as input to the feature engineering phase to infer economic indicators and sentiment polarity of the daily news.
+We then aggregate data and perform the training of a deep learning model to predict future stock values.
+4.1 . Data ingestion
+Both historical price and news headlines data were provided by a private source. The historical price data covered daily open,
+high, low, close, and volume records. News headlines, instead, provided publication date, source URL, and company ticker for each
+article.
+We ingest data from two different data sources, which include historical, financial, and news-related data for 47 meme stocks
+listed on major stock exchanges from January 2019 to December 2021. The former is made up of daily records of opening, high, low,
+and closing prices and daily exchange volumes, while the latter is composed of 8652 headlines, their publication date, a link to the
+source, and the corresponding company acronym. The included enterprises represent a diverse sample of companies (e.g., technology,
+transportation), allowing for a realistic and nuanced evaluation of the methodologies proposed in this study.
+Table 1 reports the characterization of news for the 47 meme stocks, whose price dynamics are predominantly influenced by social
+media-driven narratives rather than traditional fundamental indicators.
+The prediction of meme stock prices presents different challenges, primarily due to the dynamic nature of social media-driven
+behaviors and the high volatility of these equities, which are strongly influenced by both financial indicators and contextual
+factors [16].
+The multimodal structure of the dataset enables a comprehensive analysis of possible correlations between sentiment inferred
+from news textual content and stock price fluctuations.
+4.2 . Feature engineering
+The preprocessing pipeline begins with the systematic loading of economic data for each ticker symbol from serialized pickle
+files, converting each to a 32-bit floating-point precision. This standardization ensures consistency across securities and improves
+memory efficiency during downstream computations. Subsequently, the feature engineering step is performed. This step is divided
+into polarity extraction from news headlines and economic indicator extraction from numerical time series. Once both processes are
+completed, the results are merged through a data aggregation step, aligning historical financial data with corresponding sentiment
+information.
+5
+
+===== PAGE 6 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Listing 1. Prompt used for polarity extraction from news headlines.
+4.2.1 . Polarity extraction
+The first step of feature engineering involves the extraction of sentiment elements from each headline. To achieve this, we deploy
+three different LLMs (i.e., Llama, Mistral, and Vicuna) in a zero-shot setting, relying exclusively on their general-purpose capabilities
+to analyze and assign sentiment labels to financial news headlines.
+We prompted the LLMs to categorize headlines into three unique sentiment categories through the prompt shown in Listing 1:
+positive, reflecting news that anticipates likely increases in stock values, negative, indicating news that implies probable downward
+pressure on stock prices, and neutral, representing news with no major anticipated impact on stock price movements. Furthermore,
+LLMs are instructed to report an overall sentiment polarity score in the range of [−1.0, 1.0], establishing a continuous measure of
+emotion intensity. These four fields (positive, negative, neutral, and polarity) are schema-enforced in a JSON object. To ensure
+logical consistency, we validate the parsed results: if the sum of the three category probabilities falls outside the range [0.99, 1.01],
+the response is flagged as a hallucination. In such cases, the model is re-prompted with the same headline until a valid, normalized
+distribution is achieved.
+To tackle the challenge of the fluctuating influence of news sentiment on stock price movements, we introduce an impact factor
+that estimates the potential market effect of daily sentiment. This addition overcomes the limitations of raw sentiment scores by
+incorporating news volume and sentiment consistency. Specifically, the impact factor considers the mean polarity of daily headlines,
+the volume of news coverage, and the standard deviation of sentiment scores, capturing the intuition that high-volume, polarized
+news days are likely to have greater market impact than days with few headlines or consensus. To handle periods without news
+coverage, we apply an exponential decay mechanism with a decay rate of 0.05 to propagate the last known sentiment information
+forward to empty calendar days, representing the gradual lowering influence of past news over time. Additionally, we assign a neutral
+sentiment value (polarity and neutral scores set to 1, negative and positive scores set to 0) to days without news and introduce a
+binary flag to distinguish between observed and imputed sentiment, enabling models to differentiate genuine from inferred signals.
+Finally, to incorporate company-specific characteristics, we employed a sophisticated embedding approach using the pre-trained
+FinBERT [21], which processed each ticker symbol to generate contextual embeddings, allowing us to capture semantic relationships
+between different companies while maintaining computational tractability.
+4.2.2. Economic indicator extraction
+The second step of our feature engineering method is the production of technical indicators that capture various aspects of market
+behavior. Economic indicators based on prices are the foundation of time series analysis, since they can capture the fundamental
+dynamics of asset price movements, providing information about both the magnitude and direction of price changes over time.
+Therefore, to represent short-term price momentum, we computed percentage changes (Eq. 2) to identify relative price movement
+between consecutive periods and logarithmic returns (Eq. 3) to ensure that returns are additive over time and roughly distributed in
+a normal way to make econometric analysis smoother.
+𝑃 − 𝑃
+pct_change = 𝑡 𝑡−1 (2)
+𝑡 𝑃
+𝑡−1
+( 𝑃 )
+log_change = ln 𝑡 (3)
+𝑡 𝑃
+𝑡−1
+where 𝑃 is the closing price at time 𝑡.
+𝑡
+We also included a 7-day exponential moving average (EMA) as defined in Eq. (4), the 7-day relative strength index (RSI) as
+defined in Eq. (5), and the raw stochastic value (RSV) as defined in Eq. (6) to identify and quantify the direction and strength of price
+6
+[TABLES_ON_PAGE 6: 1]
+[TABLE 1]
+
+
+
+
+
+
+
+
+
+===== PAGE 7 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+trends, providing important information preparatory to understanding market oscillations.
+EMA = 𝛼 ⋅ 𝑃 + (1 − 𝛼) ⋅ EMA (4)
+𝑡 𝑡 𝑡−1
+where 𝛼 = 2 is the smoothing factor and 𝑛 is the number of days we consider the price 𝑃 ;
+𝑛+1 𝑡
+100
+RSI = 100 − (5)
+𝑡 1 + RS
+where
+Average Gain over 7 periods
+RS =
+Average Loss over 7 periods
+𝐶 − 𝐿
+RSV = 𝑡 𝑛 × 100 (6)
+𝑡 𝐻 − 𝐿
+𝑛 𝑛
+where 𝐶 is the current closing price, 𝐿 is the lowest price over 𝑛 periods and 𝐻 is the highest price over 𝑛 periods, with 𝑛 = 7 days.
+𝑡 𝑛 𝑛
+To quantify the degree of price variation and market uncertainty, essential elements for risk assessment and trading strategy,
+we also evaluated the average true range (ATR) indicator with a 7-day window to capture recent volatility patterns (Eq. 7) and
+the Bollinger bands (Eq. 8) calculated over two timeframes which allowed the model to consider both short-term and medium-term
+volatility regimes. Additionally, we computed the moving average convergence divergence (MACD) indicator, which provided insights
+into momentum shifts and potential trend reversals (Eq. 9), unfolding changes in strength, direction, momentum, and duration of
+price.
+𝑛
+1 ∑
+ATR = TR (7)
+𝑡 𝑛 𝑖
+𝑖=0
+where True Range (TR) is defined as
+TR
+𝑡
+= max(𝐻
+𝑡
+− 𝐿
+𝑡
+, |𝐻
+𝑡
+− 𝐶 𝑡−1|, |𝐿
+𝑡
+− 𝐶 𝑡−1|)
+with 𝐻 , 𝐿 , and 𝐶 representing high, low, and closing prices, respectively, and 𝑛 = 7 days;
+𝑡 𝑡 𝑡
+Upper Band = SMA + 𝑘 ⋅ 𝜎
+𝑡 𝑡 𝑡
+(8)
+Lower Band = SMA − 𝑘 ⋅ 𝜎
+𝑡 𝑡 𝑡
+where SMA is the simple moving average, 𝜎 is the standard deviation over the period, and 𝑘 is typically 2, which defines the bands’
+𝑡 𝑡
+amplitude.
+MACD = EMA (𝑃 ) − EMA (𝑃 ) (9)
+𝑡 𝑠ℎ𝑜𝑟𝑡 𝑡 𝑙𝑜𝑛𝑔 𝑡
+where the 𝐸𝑀𝐴 uses a 3-day period and the 𝐸𝑀𝐴 uses an 11-day period, with a 7-day signal line.
+𝑠ℎ𝑜𝑟𝑡 𝑙𝑜𝑛𝑔
+Finally, we also perform frequency domain analysis through Fourier transform decomposition of closing prices, an approach that
+filters out high-frequency noise while preserving the underlying structural patterns in price movements, creating features that capture
+different scales of market dynamics. To prevent data leakage, the Fast Fourier Transform (FFT) decomposition is computed exclusively
+on the training portion of each ticker’s closing price series; the resulting frequency components are then applied consistently to all
+splits.
+For this purpose, the closing price series was decomposed using the FFT as defined in Eq. (10).
+𝑁−1
+𝑋(𝑘) = ∑ 𝑥(𝑛) ⋅ 𝑒−𝑗 2 𝑁 𝜋 𝑘𝑛, 𝑘 = 0, 1, … , 𝑁 − 1 (10)
+𝑛=0
+where 𝑥(𝑛) represents the closing price series. We then reconstruct the signal considering only signals that appear every 3, 9, and 15
+days.
+These three reconstruction periods were selected to capture short-term (approximately intra-week), medium-term (approximately
+bi-weekly), and longer-term (approximately monthly) market cycles.
+4.2.3. Data aggregation
+The last step of the feature engineering is the data aggregation, in which we merge and align the two indicators extracted during
+the previous phases. We reindexed all data to a daily frequency, maintaining constant temporal spacing among stocks and omitting
+weekend observations to focus entirely on active trading hours. The aggregation process consolidates multiple headlines per day into
+the mean, median, and standard deviation of sentiment scores across all three LLMs, making it possible to capture both the central
+tendency and variability of daily sentiment, providing a comprehensive representation of the news environment. As a final step, this
+dataset was merged on a daily basis with the economic one, enriched with the economic features discussed in the previous subsection.
+7
+
+===== PAGE 8 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+4.3 . Stock forecasting
+In this section, we first present the proposed data-driven module for stock market forecasting, relying on recent state-of-the-
+art approaches according to the classification defined by Bao et al. [18], and, successively, we describe the training procedure in
+Section 4.3.1.
+LSTM architecture represents a hybrid neural network design that integrates learnable stock embeddings with bidirectional tempo­
+ral processing for multi-asset financial forecasting, addressing the dual challenges of capturing company-specific characteristics and
+temporal dependencies inherent in financial time series predictions.
+GAN architecture employs a dual-network design constituted by a residual generator and discriminator, both containing, as in this
+case, learnable stock embeddings. This architecture tries to exploit adversarial training dynamics to capture the intricate patterns and
+correlations inherent in multi-asset financial data.
+Transformers architecture is built on the attention neural network design that employs self-attention mechanisms and positional
+encoding to capture temporal correlations in financial time series data without relying on recurrent components. This model mixes
+learnable stock embeddings with multihead self-attention to handle the hard task of simulating long-range interdependence while
+preserving company-specific traits. The positional encoding mechanism introduces temporal order information into the embedded
+representations, generating, in this way, position-dependent signals through the application of sine functions to even-indexed di­
+mensions and cosine functions to odd-indexed ones, creating unique positional signatures for each temporal position within the
+sequence.
+4.3.1 . Training
+The training phase uses a thorough technique designed to provide robust model evaluation and optimal performance across
+multiple architectural configurations.
+Feature preprocessing comprised a normalization within a range of [1, 6] to ensure numerical stability and to avoid both vanishing
+gradient problems and collapsing around zero values. Normalization is performed independently for each ticker symbol to account for
+differences in price scales and volatility across stocks. A sliding window approach is used to generate sequential input–output pairs
+with a window length of five days. However, to ensure a fair evaluation, the dataset was partitioned into training (70%), validation
+(20%), and test (10%) sets.
+We train the model following Algorithm 1. The core training process utilized a loss function with L1 regression loss, integrating
+an L1 regularization term on linear layer weights to prevent overfitting and maximum error weighting to penalize extreme prediction
+errors that could indicate model instability. This multi-component method guaranteed that models addressed the dual nature of finan­
+cial forecasting, where both price levels and movement directions hold important practical value. During the training, we employed
+the approach of gradient trimming to prevent bursting gradients, a frequent issue in recurrent architectures when processing large
+sequences. On the validation dataset, after each training epoch, we evaluated model performance, implementing model checkpointing
+based on the decrease in the loss function to preserve only configurations that achieved improved validation performance, as an early
+stopping mechanism to prevent overfitting, ensuring optimal model selection.
+Multiple performance indicators were simultaneously monitored (i.e., MAE, MSE, RMSE, and $MAPE) alongside percentage errors,
+a financial-specific measure, other than computational efficiency metrics related to training and inference time, which provided
+insights into the practical deployment viability of different model configurations. AdaGrad was chosen as the optimization algorithm
+with an adaptive learning rate schedule based on monitoring the average loss, which automatically reduced learning rates when
+validation performance plateaued for consecutive epochs, allowing aggressive initial learning but ensuring convergence stability
+in later training phases. We also structured a weight decay regularization offering extra overfitting protection, which is extremely
+significant given the complicated feature interactions present in the sentiment-augmented datasets, where high-dimensional feature
+spaces could lead to spurious correlations.
+At the end of the training phase, we conducted a final evaluation using a completely isolated test dataset that had remained unseen
+throughout the training and validation phases. We stored all test metric results as final accuracy model results.
+5 . Experimental setup
+We trained and compared three model architectures during the stock forecasting phase: LSTM, GAN, and a Transformer-based
+model. Each architecture was tested under four feature engineering configurations. The first serves as a baseline using only economic
+indicators, while the remaining three incorporate polarity information extracted from news headlines using distinct open-source LLMs.
+This setup allows us to assess how differences in sentiment extraction across models influence forecasting performance. We used
+the following LLMs in their quantized 𝑄 variants to balance inference performance with computational efficiency, enabling the
+4𝐾𝑀
+polarity extraction to be executed on a local machine: i) Llama-3.1-8B-Instruct,3 ii) Vicuna-7B-v1.5,4 and iii) Mistral-7B-Instruct-v0.3.5
+3 https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF.
+4 https://huggingface.co/TheBloke/vicuna-7B-v1.5-GGUF.
+5 https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF.
+8
+
+===== PAGE 9 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Algorithm 1 General steps and training procedure followed.
+Require: Dataset 𝐷, Window size 𝑤=5
+Ensure: Trained model M, Metrics R
+1: Split 𝐷 into train (70%), val (20%), test (10%)
+2: Fit scaler on train set only
+3: for all ticker 𝑡 in 𝐷 do
+4: Normalize 𝑡 using the fitted scaler
+5: end for
+6: Create sliding windows of length 𝑤 for seq2seq inputs
+7: Init model M with ReLU activations
+8: Define L = L1Loss + 𝜆 1 ⋅ L1Reg + 𝜆 2 ⋅ MaxErrPenalty
+9: Init AdaGrad optimizer with adaptive LR
+10: Set gradient clipping threshold 𝜃
+11: for each epoch do
+12: for mini-batch in train set do
+13: Forward M; compute L; clip gradients; backprop
+14: end for
+15: Evaluate on val set; update best model if improved
+16: if early stopping triggered then
+17: break
+18: end if
+19: end for
+20: Evaluate M on test set
+21: Compute metrics: MAE, MSE, RMSE, $MAPE, %Error, runtime
+22: return M, R
+Table 2
+Model summary of LSTM Model.
+Layer Output Shape Param #
+LSTMModel [32, 1] 123,008
+Embedding [32, 5, 120] 5640
+LSTM [32, 5, 192] 635,136
+ReLU [32, 192] –
+LayerNorm [32, 192] 384
+Linear [32, 128] 24,704
+SELU [32, 128] –
+Linear [32, 64] 8256
+LayerNorm2 [32, 64] 128
+Linear [32, 1] 65
+Total parameters 797,321
+Trainable params 797,321
+Non-trainable params 0
+5.1. Stock forecasting models: implementation details
+LSTM architecture. Looking at the general architecture in Table 2, we concatenate an embedding layer that maps discrete stock
+identifiers to dense vector representations with input features to create enriched representations that combine quantitative market
+data with learned stock-specific characteristics. First, we used an orthogonal technique to initialize the weights of the LSTM to
+maintain gradient stability and prevent vanishing gradients and the initialization with appropriate scaling factors for linear layers.
+Moreover, the core temporal processing utilizes a bidirectional LSTM for superior pattern recognition that processes sequences
+capturing comprehensive temporal context within each sequence window, applying dropout regularization between LSTM layers when
+the network depth exceeds one layer to balance model capacity with overfitting prevention. Layer normalization with learnable affine
+parameters stabilizes training dynamics, while a combination of SELU activation provides self-normalizing characteristics and ReLU
+activation prevents saturation.
+The final prediction layer maps processed representations to target output dimensions.
+GAN architecture. The fundamental element for both the generator (Table 3) and the discriminator (Table 4) is the residual block. It
+implements a two-layer convolutional structure and a normalization layer applied before the first convolution operation. To ensure
+computational efficiency and reliable signal propagation, both a ReLU activation function positioned between consecutive layers
+and post-processing normalization were incorporated in the residual block. Skip connections allow dimensional mismatches by 1×1
+9
+
+===== PAGE 10 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Table 3
+Generator model summary.
+Layer Output Shape Param #
+Generator [32, 1] –
+Embedding: 1–1 [32, 5, 120] 5640
+GRU: 1–2 [32, 5, 512] 1,018,368
+Dropout: 1–3 [32, 5, 512] –
+ResidualBlock: 1–4 [32, 512, 5] 1024
+LayerNorm: 2–1 [32, 512, 5] 5120
+Conv1d: 2–2 [32, 256, 5] 393,472
+ReLU: 2–3 [32, 256, 5] –
+Conv1d: 2–4 [32, 512, 5] 393,728
+LayerNorm: 2–5 [32, 512, 5] 5120
+Conv1d: 2–6 [32, 512, 5] 262,656
+Conv1d: 1–5 [32, 256, 5] 131,328
+ResidualBlock: 1–6 [32, 256, 5] 512
+LayerNorm: 2–7 [32, 256, 5] 2560
+Conv1d: 2–8 [32, 128, 5] 98,432
+ReLU: 2–9 [32, 128, 5] –
+Conv1d: 2–10 [32, 256, 5] 98,560
+LayerNorm: 2–11 [32, 256, 5] 2560
+Conv1d: 2–12 [32, 256, 5] 65,792
+Conv1d: 1–7 [32, 128, 5] 32,896
+ResidualBlock: 1–8 [32, 128, 5] 256
+LayerNorm: 2–13 [32, 128, 5] 1280
+Conv1d: 2–14 [32, 64, 5] 24,640
+ReLU: 2–15 [32, 64, 5] –
+Conv1d: 2–16 [32, 128, 5] 24,704
+LayerNorm: 2–17 [32, 128, 5] 1280
+Conv1d: 2–18 [32, 128, 5] 16,512
+Conv1d: 1–9 [32, 64, 5] 8256
+LayerNorm: 1–10 [32, 5, 64] 128
+Linear: 1–11 [32, 5, 32] 2080
+Dropout: 1–12 [32, 5, 32] –
+Linear: 1–13 [32, 5, 16] 528
+LayerNorm: 1–14 [32, 5, 16] 32
+Linear: 1–15 [32, 5, 1] 17
+LeakyReLU: 1–16 [32, 5] –
+Linear: 1–17 [32, 1] 6
+Total params 2,597,487
+Trainable params 2,597,487
+Non-trainable params 0
+convolution operations if input and output channel dimensions differ, guaranteeing adequate gradient flow maintenance across the
+whole network depth and preventing degradation.
+Both the generator and discriminator commence processing using stock embeddings that are concatenated with input features and
+then concatenated with output features.
+The generator adopts a hybrid temporal processing methodology that blends recurrent and convolutional components to achieve
+full sequence modeling capabilities.
+The discriminator employs a convolutional feature extraction workflow through three residual blocks that demonstrate increasing
+channel complexity, aimed at capturing temporal patterns and correlations within the financial sequences. To produce fixed-size
+representations that remain independent of input sequence length and reduce the temporal dimension, an adaptive average-pooling
+layer was utilized following the feature extraction pipeline. This output was concatenated with the stock embedding, and the resulting
+tensor was passed through a normalization and linear transformation layer implementing a dimensional reduction pathway with a
+ReLU activation function to prevent gradient saturation while maintaining discriminative capability throughout the training process.
+Looking at the whole architecture, the training framework operates through alternating optimization between generator and
+discriminator networks with the generator learning to produce increasingly realistic financial sequences while the discriminator
+simultaneously develops enhanced capability to distinguish between authentic and synthetic data. Among other things, the embedding
+integration approach enables both networks to maintain company-specific characteristics throughout the adversarial learning process,
+ensuring that generated sequences preserve distinct stock qualities.
+Transformers architecture. As shown in Table 5, the fundamental computational component incorporates several encoder mod­
+ules, each of which presents multi-head self-attention mechanisms that make it possible to detect significant temporal correlations
+without the sequential processing constraints inherent in recurrent designs. The feed-forward section of the encoder block incorpo­
+rates a two-layer architecture with ReLU activation and intermediate dimensional expansion, giving the nonlinear transformation
+capabilities necessary to capture complicated patterns in financial data. Layer normalization, modeled before both the attention and
+10
+
+===== PAGE 11 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Table 4
+Discriminator model summary.
+Layer Output Shape Param #
+Discriminator [32, 1] –
+ResidualBlock: 1–1 [32, 32, 6] 64
+LayerNorm: 2–1 [32, 1, 6] 12
+Conv1d: 2–2 [32, 32, 6] 128
+ReLU: 2–3 [32, 32, 6] –
+Conv1d: 2–4 [32, 32, 6] 3104
+LayerNorm: 2–5 [32, 32, 6] 384
+Conv1d: 2–6 [32, 32, 6] 64
+ResidualBlock: 1–2 [32, 64, 6] 128
+LayerNorm: 2–7 [32, 32, 6] 384
+Conv1d: 2–8 [32, 64, 6] 6208
+ReLU: 2–9 [32, 64, 6] –
+Conv1d: 2–10 [32, 64, 6] 12,352
+LayerNorm: 2–11 [32, 64, 6] 768
+Conv1d: 2–12 [32, 64, 6] 2112
+ResidualBlock: 1–3 [32, 128, 6] 256
+LayerNorm: 2–13 [32, 64, 6] 768
+Conv1d: 2–14 [32, 128, 6] 24,704
+ReLU: 2–15 [32, 128, 6] –
+Conv1d: 2–16 [32, 128, 6] 49,280
+LayerNorm: 2–17 [32, 128, 6] 1536
+Conv1d: 2–18 [32, 128, 6] 8320
+AdaptiveAvgPool1d: 1–4 [32, 128, 1] –
+Embedding: 1–5 [32, 120] 5640
+LayerNorm: 1–6 [32, 248] 496
+Linear: 1–7 [32, 100] 24,900
+LeakyReLU: 1–8 [32, 100] –
+Linear: 1–9 [32, 1] 101
+Total params 141,709
+Trainable params 141,709
+Non-trainable params 0
+feed-forward components, implements its pre-normalization variation that has exhibited improved training stability compared to post-
+normalization alternatives [29]. To enable effective gradient propagation through the network depth while eliminating degradation
+concerns associated with very deep topologies, residual connections surround both the attention and feed-forward components.
+A concatenation of an embedding and a projection layer is transformed to match the model dimension required. The architecture
+implements a causal attention mask that prevents the model from utilizing future time steps during training, ensuring that predictions
+rely on historical information and maintain the temporal causality constraints. The last prediction layer pulls the temporal position
+from the encoded sequence representation and performs a linear transformation to obtain single-step-ahead forecasts. Before trans­
+ferring the output to this last transformation, to ensure stable output distributions and prevent any scaling concerns, the output itself
+was processed through a normalization layer.
+5.2. Evaluation measure
+In this section, we describe the quantitative measurement criteria aimed at examining both traditional regression accuracy and
+financial-specific forecasting capabilities across all model architectures. For the evaluation of the effectiveness of our framework, we
+employed classical regression metrics such as Mean Absolute Error (MAE), Mean Squared Error (MSE), and Root Mean Squared Error
+(RMSE) defined in Eqs. (12) and (13), respectively.
+𝑛
+1 ∑
+𝑀𝐴𝐸 = 𝑛 |𝑦 𝑖 − 𝑦̂ 𝑖| (11)
+𝑖=1
+𝑛
+𝑀𝑆𝐸 = 1 ∑ (𝑦 − 𝑦̂ )2 (12)
+𝑛 𝑖 𝑖
+𝑖=1
+√
+√ 𝑛
+𝑅𝑀𝑆𝐸 = √ √ 1 ∑ (𝑦 − 𝑦̂ )2 (13)
+𝑛 𝑖 𝑖
+𝑖=1
+Alongside standard regression metrics, we employed $𝑀𝐴𝑃 𝐸, a variant of the Mean Absolute Percentage Error (MAPE), which
+provides a scale-independent assessment of prediction accuracy. The implementation, described in Definition 2, addresses the issue
+of near-zero values using threshold filtering and capping severe percentage errors to prevent a small number of extreme outliers
+(e.g., predictions on low-price penny stocks during high-volatility events) from dominating the aggregate metric, providing a more
+11
+
+===== PAGE 12 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Table 5
+Transformer model summary.
+Layer Output Shape Param #
+Transformer model [32, 1] –
+Linear: 1–1 [32, 5, 256] 7680
+Embedding: 1–2 [32, 5, 120] 5640
+PositionalEncoding: 1–3 [5, 32, 376] –
+ModuleList: 1–4 – –
+EncoderBlock: 2–1 [5, 32, 376] –
+LayerNorm: 3–1 [5, 32, 376] 752
+MultiheadAttention: 3–2 [5, 32, 376] 567,008
+Dropout: 3–3 [5, 32, 376] –
+LayerNorm: 3–4 [5, 32, 376] 752
+Sequential: 3–5 [5, 32, 376] 96,760
+Dropout: 3–6 [5, 32, 376] –
+EncoderBlock: 2–2 [5, 32, 376] –
+LayerNorm: 3–7 [5, 32, 376] 752
+MultiheadAttention: 3–8 [5, 32, 376] 567,008
+Dropout: 3–9 [5, 32, 376] –
+LayerNorm: 3–10 [5, 32, 376] 752
+Sequential: 3–11 [5, 32, 376] 96,760
+Dropout: 3–12 [5, 32, 376] –
+EncoderBlock: 2–3 [5, 32, 376] –
+LayerNorm: 3–13 [5, 32, 376] 752
+MultiheadAttention: [5, 32, 376] 567,008
+3–14
+Dropout: 3–15 [5, 32, 376] –
+LayerNorm: 3–16 [5, 32, 376] 752
+Sequential: 3–17 [5, 32, 376] 96,760
+Dropout: 3–18 [5, 32, 376] –
+LayerNorm: 1–5 [5, 32, 376] 752
+Linear: 1–6 [32, 1] 377
+Total params 2,010,265
+Trainable params 2,010,265
+Non-trainable params 0
+robust view of typical forecasting accuracy. Specifically, the metric sets a minimum threshold of 0.01 for denominator values and
+caps maximum errors at 100%, ensuring robust statistical interpretation across varying market conditions.
+( )
+Definition 2. $𝑀𝐴𝑃 𝐸 = 100% ∑ min | | 𝑦𝑖−𝑦̂𝑖 | | , 𝐶
+|𝑉 | 𝑖∈𝑉 | | |𝑦𝑖|+𝜖 | |
+where:
+• |𝑉 | = {𝑖 ∶ |𝑦 𝑖| > 𝜏} represents the set of valid indices where actual values exceed the threshold 𝜏;
+• |𝑉 | is the cardinality of the valid set;
+• 𝜖 represents the numerical stability constant;
+• 𝐶 is the maximum cap parameter;
+• 𝑦 and 𝑦̂ are the actual and predicted values of the stock price.
+𝑖 𝑖
+The evaluation framework integrates an additional percentage error analysis using multiple complementary metrics like mean per­
+centage error, maximum percentage error, and minimum percentage error. These measures provide extensive insights into the distribution
+and features of prediction errors, enabling the identification of extreme error circumstances that can suggest model instability.
+Moreover, to evaluate the computational efficiency of the models, we monitored both training and inference time provided, where
+the first one represents the cumulative duration across all epochs for model optimization, while the latter measures the computational
+cost for processing the test dataset, providing estimates for real-time prediction scenarios.
+Finally, we assess the operational overhead by calculating the hallucination rate, which measures the proportion of headlines that
+require a retry to yield a valid output. High rates not only drain resources but can significantly hinder the scalability and reliability
+of real-world deployments.
+5.3 . Hardware and software stack
+All studies were conducted on a 2021 MacBook Pro with 1 TB SSD, 10 CPU cores, and 32 GPU cores. The developed Python code
+included PyTorch for implementing, training, and testing the deep learning models, Pandas and Scikit-learn for data manipulation
+and preprocessing, and Matplotlib and Seaborn as visualization tools.
+5.4 . Information for reproducibility
+To enable independent reproduction of the methodology, this subsection consolidates all the information required to rebuild an
+equivalent corpus and replicate every experimental step end-to-end.
+12
+
+===== PAGE 13 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Table 6
+Generation hyperparameters.
+Parameter Value
+seed 42
+n_ctx 1024
+n_batch 50
+temperature 0.7
+max_tokens 256
+n_gpu_layers −1
+chat_format chatml
+Table 7
+Training hyperparameters.
+Parameter Value
+Batch size 32
+Maximum epochs 200
+Early stopping patience 15
+Gradient clipping threshold 𝜃 1.0
+Loss L = L1Loss + 𝜆 ⋅ L1Reg + 𝜆
+1 2
+𝜆 10−4
+1
+𝜆 0.1
+2
+Optimizer AdaGrad
+Learning rate 10−2
+Learning rate scheduling 𝜂 0.5
+Learning rate patience 5 epochs
+Data specification. Period: January 2019 – December 2021. Dataset: 47 meme stocks listed on major exchanges. Financial fields
+collected: opening, high, low, and closing prices and daily volume. News fields collected: headline text, publication date, source URL,
+and ticker symbol ([8, 652]8652 headlines in total).
+LLM inference and polarity extraction. Models used: Llama-3.1-8B-Instruct, Mistral-7B-Instruct-v0.3, Vicuna-7B-v1.5, all in their
+𝑄 4𝐾𝑀 quantised variants. Inference framework: llama.cpp for local CPU/GPU execution. Generation hyperparameters are shown in
+Table 6.
+Output enforced via response_format with an explicit JSON schema requiring fields positive, negative, neutral, and polarity.
+Hallucination handling: when positive + negative + neutral ∉ [0.99, 1.01], the model is automatically re-run on the same headline; the
+retry always produces a valid distribution. The full prompt template is reported in Listing 1.
+Feature engineering. Economic indicators are computed according to Eqs. (2)–(9). FTT reconstruction periods: 3, 9, and 15 days,
+computed on the training portion only. Daily sentiment aggregation: mean, median, and standard deviation of headline-level scores.
+Missing-news handling: exponential decay of the last known sentiment with rate 0.05, plus a binary imputed-signal flag.
+Training protocol. Full per-layer specifications, including output shapes and parameter counts, are reported in Tables 2 for LSTM,
+Table 3 for GAN generator, Table 4 for GAN discriminator, and Table 5 for the transformer. Sliding-window length 𝑤 = 5. Data
+split: 70% train / 20% validation / 10% test with the scaler fitted exclusively on the training set and applied (without re-fitting) to
+validation and test (normalization range [1, 6]). LSTM weights are initialized orthogonally; linear layers use scaled initialization. In
+Table 7, we report the training hyperparameters.
+Evaluation. Exact definitions of MSE, MAE, RMSE, and the custom $𝑀𝐴𝑃 𝐸 (with threshold 𝜏 = 0.01 and cap 𝐶 = 100%) are given
+in Eqs. (11)–(13) and Definition 2. Computational efficiency is reported as cumulative training time and per-test-set inference time.
+6 . Results and discussion
+A comparison of the evaluation of the outcomes on test metrics between the three deep learning architectures reveals major
+differences in prediction accuracy, computational efficiency, and sentiment integration effectiveness.
+The comparative analysis of the three LLMs in Table 8 has revealed distinct performance characteristics in terms of computational
+efficiency and output reliability for polarity extraction.
+From a computational efficiency standpoint, Vicuna is the most efficient model, exhibiting an average generation time of 1.065
+seconds per headline, closely followed by Mistral. Llama demonstrates roughly 14% greater computing overhead compared to the
+most efficient inference model. The alignment of mean and median values across all models indicates steady processing durations with
+no major outliers impacting the central tendency estimates of generating time. Nonetheless, although Llama necessitates increased
+computational time, it exhibits remarkable stability with the optimal standard deviation value, signifying highly predictable and
+consistent processing behavior across various headlines. Both Mistral and Vicuna demonstrate far greater variability in processing
+durations, indicating that their computational demands vary drastically based on the complexity or attributes of particular headlines.
+13
+
+===== PAGE 14 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Table 8
+LLM generation metrics. Average generation time with standard deviation, median
+generation time, and hallucination rate.
+Model Avg generation time Median generation time Hallucination rate
+Llama 1.216 ± 0.006 1.165 0.0
+Mistral 1.092 ± 0.069 1.056 0.048
+Vicuna 1.065 ± 0.066 1.019 0.096
+Table 9
+Forecasting results varying model architecture and LLM used.
+Architecture LLM loss MAE MSE RMSE $MAPE mean_pct_error max_pct_error min_pct_error
+LSTM Llama 3.5880 0.1476 0.3280 0.1850 12.6330 52.7500 108.4100 0.6250
+LSTM Vicuna 3.5070 0.1301 0.3260 0.1630 12.9040 50.0050 105.7220 0.5490
+LSTM Mistral 3.5480 0.1468 0.3390 0.1840 13.4970 51.7570 106.5760 0.5820
+LSTM Economic 3.5210 0.1253 0.3110 0.1570 12.2980 51.9860 106.5560 0.5800
+GAN Llama 4.5620 0.3974 0.3780 0.4980 20.8190 51.6640 129.4850 0.2390
+GAN Vicuna 4.4610 0.3830 0.4050 0.4800 17.8150 52.9500 126.4600 0.2260
+GAN Mistral 4.5040 0.4333 0.5250 0.5430 20.1110 53.0960 126.3610 0.2670
+GAN Economic 4.7180 0.6137 1.2760 0.7690 24.6260 51.5160 126.5240 0.2100
+Transformer Llama 4.4010 0.1444 0.3340 0.1810 12.0490 50.6240 134.7230 0.2680
+Transformer Vicuna 4.2580 0.1436 0.3250 0.1800 11.5040 49.7400 130.0650 0.2960
+Transformer Mistral 4.3260 0.1460 0.3330 0.1830 11.9660 50.3850 132.0340 0.3260
+Transformer Economic 4.2130 0.1317 0.3050 0.1650 9.9950 51.3300 129.0520 0.3410
+The most important distinction is related to the rates of hallucination. Indeed, while Llama demonstrates remarkable reliability
+with no occurrences of invalid responses, consistently delivering accurate sentiment classifications for all analyzed headlines, both
+Mistral and Vicuna exhibit a moderate hallucination rate with a significantly higher ratio for the latter model, attributable to incorrect
+formatting or erroneous sentiment extraction.
+In Table 9, we show stock forecasting results of each architecture associated with each LLM. LSTM demonstrates exceptional
+performance across all metrics, reaching the lowest loss values between 3.507 and 3.588 and significantly lower RMSE scores ranging
+from 0.157 to 0.185. These results indicate a notable enhancement, especially in contrast to the GAN alternative architecture. LSTM
+models get roughly 60 − 70% lower RMSE while sustaining competitive $MAPE performance within the 12.298 − 13.497% range. On
+the other side, transformer architectures offer equivalent RMSE performance with values between 0.165 and 0.183 while achieving
+marginally superior MAPE scores ranging from 9.995% to 12.049%.
+Conversely, GAN models present significant difficulties in attaining accurate magnitude predictions for financial time series,
+exhibiting elevated error rates across all regression metrics with RMSE values ranging from 0.48 to 0.769 and $MAPE scores between
+17.815% and 24.626%. This is likely attributable to their inherent characteristics: they attempt to generate new points based on the
+initial five and noise, rendering them more susceptible to higher error rates, especially in a multi-ticker context.
+In addition, the impact of sentiment integration varies significantly across architectural implementations, revealing complex
+interactions between NLP capabilities and temporal modeling techniques. A closer examination shows that the LSTM architecture
+effectively integrates sentiment information, achieving the best performance with the Vicuna model marked by a lower loss compared
+to the economic baseline. In contrast, the Llama and Mistral variants display slight performance degradation, suggesting that LSTM
+models possess selective sensitivity to the sentiment quality derived from an LLM.
+The GAN model exhibits the most intricate sentiment integration landscape with Vicuna attaining the optimal generator loss
+and $MAPE, indicating that adversarial training can exploit high-quality sentiment features effectively. Nonetheless, all sentiment-
+augmented GAN versions underperform their economic-only baselines in RMSE. This underscores the inherent challenge of effectively
+incorporating sentiment data within adversarial training frameworks for financial forecasting.
+Transformer models demonstrate competitive performance across multiple metrics with Vicuna also achieving strong overall
+results in this case, which suggests that transformer architectures may possess inherent capabilities for processing traditional financial
+indicators that partially obviate the need for explicit sentiment features while still benefiting from sentiment integration.
+In Fig. 2, we present violin plots for Vicuna, the best-performing LLM for polarity sentiment extraction, to examine the percentage
+variation errors across the three architectures, focusing on their distribution as well as mean and median values.
+The LSTM model shows superior error concentration with a mean error of 5.63% and a median of 2.99% (mean-to-median ratio of
+1.88), which highlights a reasonably narrow error distribution and low impact from outliers, supporting its reliability and consistency
+in financial forecasting applications where consistent performance is crucial.
+In comparison, the transformer model shows a slightly higher error dispersion with a median of just 1.08% and a mean of 5.71%
+(mean-to-median ratio of 5.29) which underlines significant contrast and frequent outlier predictions, which lead to a decrease in the
+model’s overall predictive consistency, despite high best-case performance.
+14
+
+===== PAGE 15 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Fig. 2. Error distribution of the three prediction models through violin plots.
+Table 10
+Computational efficiency. It is worth noting that “it” and “tt” acronyms represent the inference and
+training time, respectively.
+Model 𝐿𝑆𝑇 𝑀 𝑖𝑡 𝐿𝑆𝑇 𝑀 𝑡𝑡 𝐺𝐴𝑁 𝑖𝑡 𝐺𝐴𝑁 𝑡𝑡 𝑇 𝑟𝑎𝑛𝑠𝑓𝑜𝑟𝑚𝑒𝑟 𝑖𝑡 𝑇 𝑟𝑎𝑛𝑠𝑓𝑜𝑟𝑚𝑒𝑟 𝑡𝑡
+Llama 3.6560 943.0320 4.0270 6166.6820 0.3743 972.7260
+Vicuna 4.4800 958.0340 5.4260 6089.2120 0.3271 989.2290
+Mistral 5.7660 957.6490 6.5410 6130.3780 0.3354 981.1140
+Economic 6.9050 957.8520 7.1370 6189.1230 0.3289 1016.1540
+The GAN model has a comparable skewed error profile exhibiting a median of 1.09% and a mean of 4.63% (mean-to-median ratio
+of 4.25), which suggests a heavy-tailed distribution. Moreover, while its best-case predictions are competitive, the huge influence of
+outliers limits its dependability in real-world financial contexts.
+Mean-to-median ratio analysis highlights the stability discrepancies between models, revealing that LSTM has the lowest ratio,
+addressing superior robustness and error control. The Transformer and GAN models on the counterpart show higher ratios, a factor
+that is indicative of increased unpredictability.
+In Table 10, we examine the computational efficiency of the models. It is possible to highlight substantial disparities in training
+requirements, which have considerable ramifications for practical implementation and research scalability. LSTM models exhibit the
+best computational efficiency with training times ranging from 943 to 958 seconds, reflecting six to seven times faster convergence
+compared to GAN designs. On the other hand, transformer models hold an intermediate position, indicating around 15% longer
+training time elapsed than LSTM implementations while preserving major efficiency advantages over GAN techniques.
+In Fig. 3, we show the closing price predictions related to AMD6 ticker, which is one of the tickers with more data. We identify
+significant differences in trend tracking, volatility response, and alignment with actual market behavior.
+A global analysis demonstrates that the Vicuna-based prompts yield more accurate and stable predictions, especially when used
+in conjunction with transformer architectures. Further visual analysis of forecast trajectories reveals important differences in model
+behavior that are not fully captured by $MAPE alone, because it is evident that transformer outputs tend to exhibit smoother curves
+and more coherent alignment with actual market trends. These models were observed to follow turning points in the price series with
+relatively low lag and minimal erratic jumps. GANs, while occasionally achieving close numerical predictions, often produced visually
+unstable forecasts characterized by sharp discontinuities and implausible directional changes. The LSTM model showed smoother
+but sluggish behavior, often lagging behind actual price inflections and failing to capture short-term dynamics. The distribution of
+prediction errors can explain the difference between $MAPE results and visual coherence. Indeed, GANs and Transformers models
+both produce many small errors, characterized by a lower $MAPE than the LSTM one, but Transformers and especially LSTM tend to
+distribute those errors more uniformly, avoiding outliers. Conversely, GANs can achieve very good point estimates in isolation but
+may do so with less interpretable or unstable dynamics, which could be problematic for decision-making contexts like algorithmic
+6 https://www.amd.com/en.html.
+15
+
+===== PAGE 16 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Fig. 3. AMD stock prediction using Vicuna against the economic indicators baseline.
+trading. So, as an overall comparison, both for computational efficiency and general forecasting prices, LSTM appears to provide
+better-balanced results.
+These experimental observations align with established theoretical frameworks in financial time-series literature. We further
+contextualize our framework’s performance by discussing the results obtained against the theoretical findings of a representative
+model taxonomy [18] composed of Recurrent Neural Networks, Transformers, and GANs.
+Recurrent models such as LSTMs are widely recognized for their ability to model sequential dependencies and smooth tempo­
+ral transitions within noisy financial environments. Their ability to maintain stable regression performance and lower variance in
+prediction errors, as evidenced by our lower RMSE dispersion and reduced mean-to-median error ratios [26], is well supported by
+recent comparative studies [30]. Similarly, our findings regarding Transformer-based architectures reflect their capacity for capturing
+long-range temporal dependencies through self-attention mechanisms [31]. While they proved computationally more demanding in
+our tests, their competitive RMSE and superior $MAPE scores suggest an enhanced ability for local trend adaptation and short-term
+sensitivity. This confirms that attention-based models can effectively synthesize heterogeneous signals, such as the integration of
+sentiment and traditional financial indicators [30]. Conversely, GAN-based forecasting approaches have been previously associated
+with higher training instability due to adversarial optimization dynamics [32]. The elevated variance and larger outlier sensitivity
+observed in our results are theoretically coherent with the known difficulty of stabilizing GAN training in regression-oriented financial
+forecasting scenarios, particularly in environments characterized by heterogeneous volatility regimes [33].
+Finally, we conducted an XAI evaluation to explore the underlying factors driving these substantial performance differences across
+the various LLMs.
+6.1 . XAI
+To analyze the differences in model outputs, we selected nine headlines, three each, classified as neutral, positive, and negative
+by the Vicuna model, and compared their classifications with those provided by Llama and Mistral, as shown in Table 11 (Table 12).
+The polarity prediction results demonstrate considerable disparities in how each language model interprets sentiment in financial
+headlines. Indeed, as depicted in the heatmap in Fig. 4, Llama gives extremely polarized scores, whereas Vicuna tends to be more
+16
+
+===== PAGE 17 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Table 11
+Sentiment analysis performance Across models.
+Model Sentiment Polarity Category Text Sample Key Evidence
+Vicuna
+Neutral +0.60 Moderate Best Stocks Of 2021: Meme Stocks… Model assigned positive scores to…
+Neutral +0.50 Moderate The 25 Best-Performing Stocks… Positive sentiment based on…
+Neutral +0.50 Moderate 10 Top Robinhood Stocks That… Financial context considered…
+Positive +0.95 Strong Hedge Funds Salvage 2021 Gains… Performance of hedge funds…
+Positive +0.95 Strong ON AB Small Cap Portfolio Buys… Portfolio buying activity…
+Positive +0.90 Strong 3 Stocks to Buy On the Dip… Investment opportunity signal…
+∙ Negative −0.80 Strong AMC Stock Could Very Well Be… Downward trend indication…
+∙ Negative −0.80 Strong Why Loopring Is Up Over 620%… Contradictory model assignment…
+∙ Negative −0.80 Strong GameStop Stock Looks Exceptionally… Unlikely turnaround prospects…
+Llama
+Positive +0.80 Strong Best Stocks Of 2021: Meme Stocks… ‘Best Stocks’ and ‘Broad…’
+Positive +0.80 Strong The 25 Best-Performing Stocks… Positive outlook on stocks…
+Positive +0.70 Moderate 10 Top Robinhood Stocks That… Stock market doubling…
+Positive +0.70 Moderate Hedge Funds Salvage 2021 Gains… ‘Salvage’ negative connotation…
+Positive +0.70 Moderate 3 Stocks to Buy On the Dip… ‘Stocks to Buy’ presence…
+Positive +0.94 Very Strong Why Loopring Is Up Over 620%… ‘Up’ and ‘620%’ indicators…
+∙ Negative −0.80 Strong AMC Stock Could Very Well Be… ‘way down for good’ phrase…
+∙ Negative −0.80 Strong GameStop Stock Looks Exceptionally… ‘unlikely’ negative connotation…
+Neutral +0.60 Moderate ON AB Small Cap Portfolio Buys… ‘Buys’ suggests positive…
+Table 12
+Sentiment Analysis Performance Across Models.
+Model Sentiment Polarity Category Text Sample Key Evidence
+Mistral
+Neutral +0.50 Moderate Best Stocks Of 2021: Meme Stocks… ‘Best Stocks’ mentions…
+Neutral +0.60 Moderate 10 Top Robinhood Stocks That… ‘Top Robinhood Stocks’…
+Neutral +0.60 Moderate Hedge Funds Salvage 2021 Gains… ‘Salvage 2021 Gains’…
+Neutral +0.40 Weak ON AB Small Cap Portfolio Buys… ‘buys’ and ‘positive’ signals…
+Neutral +0.60 Moderate 3 Stocks to Buy On the Dip… Investment opportunity…
+Positive +0.80 Strong The 25 Best-Performing Stocks… ‘best-performing’ mention…
+Positive +0.80 Strong Why Loopring Is Up Over 620%… Large increase indication…
+∙ Negative −0.80 Strong AMC Stock Could Very Well Be… Downward trend suggestion…
+∙ Negative −0.80 Strong GameStop Stock Looks Exceptionally… Turnaround unlikely…
+conservative, with few instances of neutral forecasts. Mistral exhibits moderate behavior, typically coinciding with Llama on polarity
+direction but with lower intensity.
+For instance, headlines such as “Hedge Funds Salvage 2021 Gains…” and “Why Loopring Is Up Over 620%…” receive significantly
+positive polarity both from Llama and Mistral, while Vicuna diverges sharply in the latter case, assigning a polarity of −0.8, suggesting
+model-specific interpretive heuristics. Indeed, the gap might be explained by Vicuna’s increased sensitivity to underlying ambiguity
+or contextual uncertainty in terms such as “up over 620%,” which might be perceived as unsustainable or speculative rather than
+simply positive.
+On the other hand, the boxplot in Fig. 5, comparing polarity distribution by ambiguity existence, further validates this observation.
+Texts marked as ambiguous (i.e., where financial implications are not explicitly positive or negative) are associated with wider
+variance and a lower median polarity, a factor that implies that models exhibit increased uncertainty or conservative scoring when
+ambiguity is present, aligning perfectly with Vicuna’s outputs, which follow this trend, consistently lowering polarity in ambiguous
+cases.
+Analyzing the annotated XAI results, Vicuna’s reasoning process regularly refers to ambiguity and specifically indicates its con­
+sideration in several situations. For instance, Vicuna assigns neutral scores to headlines that mention general performance without
+directional indicators (e.g., “Best Stocks of 2021”) and justifies this based on the lack of explicit cues, differentiating itself from Llama
+and Mistral, which rely more heavily on surface-level textual positivity (e.g., terms like “top,” “best-performing”) and tend to ignore
+subtle ambiguity.
+The structured XAI explanations reveal underlying decision-making processes that align with model behavior:
+• Vicuna often includes financial context in its explanation pipeline. It refers to ambiguous aspects and reasoning under uncertainty
+and suggests a more cautious approach in uncertain headlines;
+• Mistral and Llama, on the other hand, appear more reliant on textual content only with limited reference to ambiguity and their
+decisions. While directionally consistent, they may lack depth in disambiguating nuanced sentiment.
+This divergence is confirmed by Vicuna’s reasoning, which more frequently mentions the ambiguity in the explanation, showing
+its explicit technique for handling uncertainty, likely contributing to its more conservative polarity distribution.
+17
+
+===== PAGE 18 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Fig. 4. Heatmap related to the polarity scores yielded by Llama, Mistral, and Vicuna LLM models shows remarkable differences based on a different reasoning process.
+Fig. 5. Polarity distribution by ambiguity.
+7 . Conclusion and future work
+Stock forecasting is a complex and high-impact task, particularly when integrating unstructured data sources such as financial
+news. In this work, we have presented a comprehensive framework that leverages LLMs for zero-shot sentiment analysis of news
+headlines and integrates these sentiment signals with historical stock price data. We combine this enriched dataset with deep learning
+models to improve stock price prediction effectiveness.
+The experimental results reveal that large performance disparities exist among LLM sentiment extractors, with Vicuna emerging
+as the most successful model for financial sentiment integration despite exhibiting the greatest hallucination rate at 9.6% among the
+LLMs utilized by us. This research highlights intrinsic trade-offs between computational efficiency and output reliability that demand
+careful consideration for practical deployment scenarios.
+By our results, we have seen that architectural selection makes an impact on both prediction accuracy and computational efficiency,
+with LSTM models consistently demonstrating superior performance across multiple metrics, achieving the lowest RMSE values while
+18
+
+===== PAGE 19 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+requiring substantially less computational resources compared to alternative architectures. However, Transformer models achieve
+competitive accuracy with superior MAPE performance, even while demanding increased computational overhead, whereas GAN
+architectures exhibit fundamental limitations for direct financial forecasting applications despite their theoretical advantages in
+capturing complex data distributions.
+From this investigation, we found that enhanced dataset integration represents a critical priority, requiring the development of
+more comprehensive datasets that incorporate several information sources beyond traditional news headlines, with the integration
+of social media sentiment, earnings call transcripts, regulatory filings, and real-time market commentary, to create richer multimodal
+datasets while investigating alternative temporal granularities and cross-market sentiment propagation for deeper insights into global
+market dynamics.
+While our work is focused on meme stocks, recent literature suggests that long-term relationships (e.g., industry linkages) also
+have transient effects [4]. This indicates that even for traditional blue-chip stocks, external information (e.g., news, events) can still
+play a role, albeit with different temporal dynamics due to challenges in interpreting event semantics [1]. This suggests that the
+consistency and contextual interpretation of sentiment remain important factors. Finally, the use of recent NLP methodologies (e.g.,
+LLMs) improves the extraction and interpretation of financial textual data, potentially mitigating some of the noise associated with
+lower or less reactive news volume [34].
+Future improvements in forecasting performance may come from advanced architectures, such as ensembles and lightweight
+models augmented with attention mechanisms. These approaches could combine the efficiency of recurrent networks with the long-
+range pattern recognition of attention-based models.
+From a deployment perspective, real-time implementation and scalability research should be addressed as the main challenges in
+developing streaming processing pipelines for real-time sentiment analysis and prediction. This should also take into account different
+techniques, such as edge computing solutions and model compression, which can help implement the solution in resource-constrained
+environments.
+Based on dataset typology, both cross-market and multi-asset extensions could greatly enhance the practical usefulness of
+sentiment-augmented forecasting through studying the generalizability of findings across diverse asset classes, geographic market­
+places, and economic conditions.
+CRediT authorship contribution statement
+Giovanni Officioso: Writing – original draft, Validation, Supervision, Software, Resources, Project administration, Methodology,
+Formal analysis, Data curation, Conceptualization. Giancarlo Sperlì: Writing – original draft, Validation, Supervision, Software,
+Resources, Project administration, Methodology, Formal analysis, Data curation, Conceptualization. Andrea Vignali: Writing –
+original draft, Validation, Supervision, Software, Resources, Project administration, Methodology, Formal analysis, Data curation,
+Conceptualization.
+Declaration of competing interest
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to
+influence the work reported in this paper.
+Acknowledgements
+This work is supported by the Italian Ministry of University and Research (MUR) within the PRIN2022—ISALDI: Interpretable Stock
+Analysis Leveraging Deep Multimodal Models (CUP: E53D23008150006). This work has been funded by the project NextGenerationEU
+via PNRR – DM 352 (CUP: E66G22000400009).
+Data availability
+The authors do not have permission to share data.
+References
+[1] D. Cheng, F. Yang, S. Xiang, J. Liu, Financial time series forecasting with multi-modality graph neural network, Pattern Recognit. 121 (2022) 108218, https:
+//doi.org/10.1016/j.patcog.2021.108218
+[2] L. Wang, J. Li, L. Zhao, Z. Kou, X. Wang, X. Zhu, H. Wang, Y. Shen, C. Lei, Methods for acquiring and incorporating knowledge into stock price prediction: a
+survey, ACM Comput. Surv. 58 (7) (Feb 2026), https://doi.org/10.1145/3773079
+[3] Z. Shao, X. Yao, F. Chen, Z. Wang, J. Gao, Revisiting time-varying dynamics in stock market forecasting: a multi-source sentiment analysis approach with large
+language model, Decis. Support Syst. 190 (2025) 114362, https://doi.org/10.1016/j.dss.2024.114362
+[4] Y. Shi, J. Chi, S. Yi, C. Zhang, Stock investment selection via time series subpatterns and multi-relationship fusion, Pattern Recognit. 169 (2026) 111919,
+https://doi.org/10.1016/j.patcog.2025.111919
+[5] L. Dong, H. Zheng, L. Li, C. Zhou, Distilling wisdom of crowds in online communities: a novel prediction market constructed with comment posters, Decis.
+Support Syst. 180 (2024) 114190, https://doi.org/10.1016/j.dss.2024.114190
+[6] K. Du, F. Xing, R. Mao, E. Cambria, Financial sentiment analysis: techniques and applications, ACM Comput. Surv. 56 (9) (Apr 2024), https://doi.org/10.1145/
+3649451
+[7] Y. Zhuang, F. Wang, D.K. Chiu, K.K. Ho, Leveraging large language models to examine the interaction between investor sentiment and stock performance, Eng.
+Appl. Artif. Intell. 150 (2025) 110602, https://doi.org/10.1016/j.engappai.2025.110602
+[8] H. Xia, H. Ao, L. Li, Y. Liu, S. Liu, G. Ye, H. Chai, CI-STHPAN: pre-trained attention network for stock selection with channel-independent spatio-temporal
+hypergraph, in: Proceedings of the Thirty-Eighth AAAI Conference on Artificial Intelligence and Thirty-Sixth Conference on Innovative Applications of Artificial
+19
+
+===== PAGE 20 =====
+G. Officioso, G. Sperlì and A. Vignali Information Sciences 754 (2026) 123711
+Intelligence and Fourteenth Symposium on Educational Advances in Artificial Intelligence, AAAI’24/IAAI’24/EAAI’24, AAAI Press, 2024, https://doi.org/10.
+1609/aaai.v38i8.28770.
+[9] J. Peng, Y. Yang, Economic implications of enhanced stock market analysis using improved forecasting methods, Expert Syst. Appl. 277 (2025) 127240, https:
+//doi.org/10.1016/j.eswa.2025.127240
+[10] X. Li, W. Li, X. Yu, Z. Han, Q. Jin, Financial risk assessment of imbalanced data based on nonlinear causal time-series network, Inf. Process. Manag. 62 (3) (2025)
+104025, https://doi.org/10.1016/j.ipm.2024.104025
+[11] S. D’Amico, F. Mercorio, N. Nobani, G. Sperlì, C. Ventre, Learning across modalities: a systematic survey of multimodal models for financial analysis, Inf. Fusion
+133 (2026) 104249, https://doi.org/10.1016/j.inffus.2026.104249
+[12] T. Dai, B. Wu, P. Liu, N. Li, J. Bao, Y. Jiang, S.-T. Xia, Periodicity decoupling framework for long-term series forecasting, in: The Twelfth International Conference
+on Learning Representations, 2024.
+[13] S. Li, K. Ning, T. Zhang, Sentiment-aware jump forecasting, Knowl.-based Syst. 228 (2021) 107292, https://doi.org/10.1016/j.knosys.2021.107292
+[14] J. Jiang, L. Wu, H. Zhao, H. Zhu, W. Zhang, Forecasting movements of stock time series based on hidden state guided deep learning approach, Inf. Process.
+Manag. 60 (3) (2023) 103328, https://doi.org/10.1016/j.ipm.2023.103328
+[15] D. Ma, D. Yuan, Enhanced stock price forecasting through a regularized ensemble framework with graph convolutional networks, Expert Syst. Appl. 250 (2024)
+123948, https://doi.org/10.1016/j.eswa.2024.123948
+[16] H. Nobanee, N.O.D. Ellili, What do we know about meme stocks? A bibliometric and systematic review, current streams, developments, and directions for future
+research, Int. Rev. Econ. Finance 85 (2023) 589–602, https://doi.org/10.1016/j.iref.2023.02.012
+[17] Y. Hu, P. Liu, P. Zhu, D. Cheng, T. Dai, Adaptive multi-scale decomposition framework for time series forecasting, in: Proceedings of the AAAI Conference on
+Artificial Intelligence, vol. 39, 2025, pp. 17359–17367.
+[18] W. Bao, Y. Cao, Y. Yang, H. Che, J. Huang, S. Wen, Data-driven stock forecasting models based on neural networks: a review, Inf. Fusion 113 (2025) 102616,
+https://doi.org/10.1016/j.inffus.2024.102616
+[19] H. Moradi-Kamali, M.-H. Rajabi-Ghozlou, M. Ghazavi, A. Soltani, A. Sattarzadeh, R. Entezari-Maleki, Revisiting financial sentiment analysis: a language model
+approach, arXiv preprint arXiv:2502.14897, 2025.
+[20] K. Du, Y. Zhao, R. Mao, F. Xing, E. Cambria, Natural language processing in finance: a survey, Inf. Fusion 115 (2025) 102755, https://doi.org/10.1016/j.inffus.
+2024.102755
+[21] Z. Liu, D. Huang, K. Huang, Z. Li, J. Zhao, FinBERT: a pre-trained financial language representation model for financial text mining, in: Proceedings of the
+Twenty-Ninth International Conference on International Joint Conferences on Artificial Intelligence, 2021, pp. 4513–4519.
+[22] R. Wang, Z. Zhang, K.L. Siau, Z. Zhang, Managing rumors on electronic interaction platforms: how management responses affect investor reaction, Inf. Process.
+Manag. 62 (5) (2025) 104162, https://doi.org/10.1016/j.ipm.2025.104162
+[23] X. Qi, Z. Xu, F. Wang, Temporal fusion point-interval forecasting: a comprehensive approach for financial time series prediction, Appl. Soft Comput. 169 (2025)
+112600, https://doi.org/10.1016/j.asoc.2024.112600
+[24] Y. Du, Y. Liu, Z. Peng, X. Jin, Gated attention fusion network for multimodal sentiment classification, Knowl.-based Syst. 240 (2022) 108107, https://doi.org/
+10.1016/j.knosys.2021.108107
+[25] C. Liu, Y. Miao, Q. Zhao, C. Wang, X. Zhu, Multimodal stock market emotion recognition model trained with a large language model, Eng. Appl. Artif. Intell.
+154 (2025) 111035, https://doi.org/10.1016/j.engappai.2025.111035
+[26] W. Bao, Y. Cao, Y. Yang, S. Wen, Long short-term financial time series forecasting based on residual multiscale TCN sparse expert network and informer, IEEE
+Trans. Neural Netw. Learn. Syst. 36 (10) (2025) 19200–19209, https://doi.org/10.1109/TNNLS.2025.3584369
+[27] X. Xiao, B. Yang, B. Yang, Temporal dependencies and global context fusion: a hybrid transformer-LSTM framework for adaptive option pricing in dynamic
+financial markets, Inf. Sci. 742 (2026) 123295, https://doi.org/10.1016/j.ins.2026.123295
+[28] R. Liu, H. Liu, H. Huang, B. Song, Q. Wu, Multimodal multiscale dynamic graph convolution networks for stock price prediction, Pattern Recognit. 149 (2024)
+110211, https://doi.org/10.1016/j.patcog.2023.110211
+[29] L. Zhang, B. Le, N. Akhtar, S.-K. Lam, D. Ngo, Large language models for computer-aided design: a survey, ACM Comput. Surv. 58 (9) (2026) 1–39, https:
+//doi.org/10.1145/3787499
+[30] E.G.A. Osman, F.A. Otaibi, Integrating deep learning and econometrics for stock price prediction: a comprehensive comparison of LSTM, transformers, and
+traditional time series models, Mach. Learn. Appl. 22 (2025) 100730, https://doi.org/10.1016/j.mlwa.2025.100730
+[31] N. Wang, X. Zhao, Enformer: encoder-based sparse periodic self-attention time-series forecasting, IEEE Access 11 (2023) 112004–112014.
+[32] F.S. Nejad, M.M. Ebadzadeh, Stock market forecasting using DRAGAN and feature matching, Expert Syst. Appl. 244 (2024) 122952, https://doi.org/10.1016/j.
+eswa.2023.122952
+[33] M. Manian, N. Rastin, Bitcoin price forecasting with generative adversarial networks, in: 2025 29th International Computer Conference, Computer Society of
+Iran (CSICC), IEEE, 2025, pp. 1–7.
+[34] S. Sun, X. Pan, S. Qi, J. Gao, Knowledge enhanced prompt learning framework for financial news recommendation, Pattern Recognit. 163 (2025) 111461,
+https://doi.org/10.1016/j.patcog.2025.111461
+20
