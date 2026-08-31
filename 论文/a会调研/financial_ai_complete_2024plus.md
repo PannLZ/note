@@ -211,7 +211,7 @@
 | 2025 | KDD | Research Track | [Progressive Dependency Representation Learning for Stock Ranking in Uncertain Risk Contrasting](https://doi.org/10.1145/3690624.3709189) | 时间序列 / 序列表征 | 在不确定风险对比下进行股票排序，渐进式学习股票依赖关系。 / 渐进学习股票间依赖表示，用风险对比信号改进排序。 |
 | 2025 | KDD | Research Track | [TempASD: Temporal Anomalous Subgraph Discovery in Large-Scale Dynamic Financial Networks](https://doi.org/10.1145/3711896.3737149) | 图学习 / GNN | 大规模动态金融网络中的时间异常子图发现。 / 在大规模动态金融网络中发现时序异常子图。 |
 | 2025 | KDD | ADS Track | [Timing is important: Risk-aware Fund Allocation based on Time-Series Forecasting](https://doi.org/10.1145/3711896.3737268) | 时间序列 / 序列表征 | 将风险意识与时间序列预测结合，用于资金分配。 |
-| 2025 | KDD |  | [VideoConviction](https://kdd2025.kdd.org/datasets-and-benchmarks-track-papers-2/) | 多模态 / 图表 / 文档理解 | 面向人类 conviction 与股票推荐的视频多模态 benchmark。 |
+| 2025 | KDD |  | [VideoConviction](https://kdd2025.kdd.org/datasets-and-benchmarks-track-papers-2/)（7.17） | 多模态 / 图表 / 文档理解 | 面向人类 conviction 与股票推荐的视频多模态 benchmark。 |
 | 2025 | NeurIPS |  | [DeepFund](https://papers.nips.cc/paper_files/paper/2025/hash/f37b0e09b90e9a6833aacf5768362b54-Abstract-Datasets_and_Benchmarks_Track.html) | LLM Agent / 策略自动化 | 构造实时基金投资 benchmark，避免 LLM 训练语料导致的时间穿越/未来信息泄漏。 |
 | 2025 | NeurIPS | Main Conference | [OPHR: Mastering Volatility Trading with Multi-Agent Deep Reinforcement Learning](https://proceedings.neurips.cc/paper_files/paper/2025/hash/4c7dbef8023a15c4b81dc95a6ea08bf3-Abstract-Conference.html) | 强化学习 / 模仿学习 | 提出面向期权波动率交易的多智能体深度 RL 框架。 |
 | 2025 | NeurIPS | Main Conference | [Online Portfolio Selection with ML Predictions](https://proceedings.neurips.cc/paper_files/paper/2025/hash/76981cb7a06b5ad53639f5bbe9924388-Abstract-Conference.html) | 优化 / 在线学习 | 引入 ML 预测的学习增强在线组合选择算法，并保留最坏情况保证。 |
@@ -225,7 +225,7 @@
 | 2026 | AAAI | Technical Track | [Controllable Financial Market Generation with Diffusion Guided Meta Agent](https://ojs.aaai.org/index.php/AAAI/article/view/37009) | 生成模型 / 仿真 | 用 diffusion-guided meta agent 生成可控金融市场序列。 |
 | 2026 | AAAI | Technical Track | [DGP: A Dual-Granularity Prompting Framework for Fraud Detection with Graph-Enhanced LLMs](https://ojs.aaai.org/index.php/AAAI/article/view/38541) | NLP / 语言模型适配 | 结合图增强 LLM 和双粒度 prompting 做欺诈检测。 |
 | 2026 | AAAI |  | [FinMMDocR](https://ojs.aaai.org/index.php/AAAI/article/view/39785) | 多模态 / 图表 / 文档理解 | 构造金融多模态文档推理 benchmark，覆盖跨页、多步、场景感知金融文档理解。 |
-| 2026 | AAAI |  | [Kronos](https://ojs.aaai.org/index.php/AAAI/issue/view/712) | 时间序列 / 序列表征 | 面向金融市场的时序 foundation model，用大规模金融时序预训练支持下游预测。 |
+| 2026 | AAAI |  | [Kronos](https://ojs.aaai.org/index.php/AAAI/issue/view/712)（7.17检索到这里） | 时间序列 / 序列表征 | 面向金融市场的时序 foundation model，用大规模金融时序预训练支持下游预测。 |
 | 2026 | AAAI | Technical Track | [MARS: A Meta-Adaptive Reinforcement Learning Framework for Risk-Aware Multi-Agent Portfolio Management](https://ojs.aaai.org/index.php/AAAI/article/view/39095) | 强化学习 / 模仿学习 | 用元自适应 RL 做风险感知的多智能体组合管理。 |
 | 2026 | AAAI | Technical / Special Program | [Market-Aware Event Timeline Summarization: Integrating Price Signals to Improve Financial News Understanding](https://ojs.aaai.org/index.php/AAAI/article/view/42370) | NLP / 语言模型适配 | 将价格信号注入事件时间线摘要，提升金融新闻理解。 |
 | 2026 | AAAI | Demonstration Track | [PortfolioPilot: An Agentic Platform for Financial Portfolio Management Algorithm Development and Evaluation](https://ojs.aaai.org/index.php/AAAI/article/view/42396) | LLM Agent / 策略自动化 | 用自然语言生成和验证组合管理算法，形成可交互 agentic 平台。 |
